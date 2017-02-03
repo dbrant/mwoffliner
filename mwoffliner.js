@@ -124,7 +124,7 @@ var outputDirectory = argv.outputDirectory ? homeDirExpander( argv.outputDirecto
 
 /* Directory where temporary data are saved */
 var tmpDirectory = argv.tmpDirectory ? homeDirExpander( argv.tmpDirectory ) + '/' : 'tmp/';
-var deflateTmpHtml = argv.deflateTmpHtml;
+var deflateTmpHtml = false; //argv.deflateTmpHtml;
 
 /* Parsoid URL */
 var parsoidUrl = argv.parsoidUrl;
@@ -1120,7 +1120,6 @@ function saveArticles( finished ) {
                             while (params[i] && isNaN(params[i][0])) {
                                 i++
                             }
-                            ;
                             params = params[i];
                         }
 
@@ -1147,7 +1146,7 @@ function saveArticles( finished ) {
                                         out += v / factors[i];
                                     }
                                     return out * hemiSign;
-                                }
+                                };
 
                                 lat = deg({N: 1, S: -1});
                                 lon = deg({E: 1, W: -1, O: 1});
