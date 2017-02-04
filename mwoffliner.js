@@ -25,7 +25,7 @@ const yargs = require( 'yargs' );
 const os = require( 'os' );
 const crypto = require( 'crypto' );
 const unicodeCutter = require( 'utf8-binary-cutter' );
-const util = require( './util.js' );
+const util = require( './util' );
 
 /************************************/
 /* Command Parsing ******************/
@@ -778,7 +778,7 @@ function drainDownloadFileQueue( finished ) {
             let drainBackup = downloadFileQueue.drain;
             downloadFileQueue.drain = function (error) {
                 if (error) {
-                    printErr('Error by downloading images' + error);
+                    printErr('Error downloading images' + error);
                     process.exit(1);
                 } else {
                     if (downloadFileQueue.length() == 0) {
@@ -808,7 +808,7 @@ function drainOptimizationQueue( finished ) {
             let drainBackup = optimizationQueue.drain;
             optimizationQueue.drain = function (error) {
                 if (error) {
-                    printErr('Error by optimizing images' + error);
+                    printErr('Error optimizing images' + error);
                     process.exit(1);
                 } else {
                     if (optimizationQueue.length() == 0) {
@@ -1214,7 +1214,7 @@ function saveArticles( finished ) {
                                 }
                             });
                         } catch (error) {
-                            printErr("Exception by requesting redis " + error);
+                            printErr("Exception requesting redis " + error);
                             process.exit(1);
                         }
                     }
@@ -1437,7 +1437,7 @@ function saveArticles( finished ) {
 
                     writeArticle(json, articleId, function (error, result) {
                         if (error) {
-                            printErr('Error by preparing and saving file ' + error);
+                            printErr('Error preparing and saving file ' + error);
                             process.exit(1);
                         } else {
                             printLog('Dumped successfully article ' + articleId);
@@ -1666,7 +1666,7 @@ function getArticleIds( finished ) {
                         finished();
                     } else {
                         next = '';
-                        finished('Error by retrieving ' + url);
+                        finished('Error retrieving ' + url);
                     }
                 });
             },
@@ -2387,10 +2387,10 @@ function executeTransparently( command, args, callback, nostdout, nostderr ) {
         }
 
         proc.on('close', function (code) {
-            callback(code !== 0 ? 'Error by executing ' + command : undefined);
+            callback(code !== 0 ? 'Error executing ' + command : undefined);
         });
     } catch (error) {
-        callback('Error by executing ' + command);
+        callback('Error executing ' + command);
     }
 }
 
