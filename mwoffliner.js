@@ -9,26 +9,22 @@
 
 var fs = require( 'fs' );
 var domino = require( 'domino' );
-var jsdom = require( 'jsdom' );
 var async = require( 'async' );
 var http = require( 'follow-redirects' ).http;
 var https = require( 'follow-redirects' ).https;
 var zlib = require( 'zlib' );
-var swig = require( 'swig' );
 var urlParser = require( 'url' );
 var pathParser = require( 'path' );
 var homeDirExpander = require( 'expand-home-dir' );
 var mkdirp = require( 'mkdirp' );
 var countryLanguage = require( 'country-language' );
 var redis = require( 'redis' );
-var childProcess = require( 'child_process' );
 var exec = require( 'child_process' ).exec;
 var spawn = require( 'child_process' ).spawn;
 var yargs = require( 'yargs' );
 var os = require( 'os' );
 var crypto = require( 'crypto' );
 var unicodeCutter = require( 'utf8-binary-cutter' );
-var htmlMinifier = require('html-minifier');
 
 /************************************/
 /* Command Parsing ******************/
@@ -324,10 +320,6 @@ var redisRedirectsDatabase = redisNamePrefix + 'r';
 var redisMediaIdsDatabase = redisNamePrefix + 'm';
 var redisArticleDetailsDatabase = redisNamePrefix + 'd';
 var redisCachedMediaToCheckDatabase = redisNamePrefix + 'c';
-
-/* Compile templates */
-var redirectTemplate = swig.compile( redirectTemplateCode );
-var footerTemplate = swig.compile( footerTemplateCode );
 
 /* Get content */
 async.series(
@@ -893,10 +885,7 @@ function saveHtmlRedirects( finished ) {
             } else {
                 if (target) {
                     printLog('Writing HTML redirect ' + redirectId + ' (to ' + target + ')...');
-                    var data = redirectTemplate({
-                        title: redirectId.replace(/_/g, ' '),
-                        target: getArticleUrl(target)
-                    });
+                    var data = redirectTemplateCode.replace("{{ title }}", redirectId.replace(/_/g, ' ')).replace("{{ target }}", getArticleUrl(target));
                     if (deflateTmpHtml) {
                         zlib.deflate(data, function (error, deflatedHtml) {
                             fs.writeFile(getArticlePath(redirectId), deflatedHtml, finished);
@@ -936,10 +925,38 @@ function saveHtmlRedirects( finished ) {
 function saveArticles( finished ) {
 
     function transformSections(json) {
+
+        // rewrite and download lead image URLs
+        transformLeadProperties(json['lead']);
+
         json['lead']['sections'][0]['text'] = transformSection(domino.createDocument(json['lead']['sections'][0]['text']));
 
-        for (var i = 0; i < json['remaining']['sections'].length; i++) {
+        for (let i = 0; i < json['remaining']['sections'].length; i++) {
             json['remaining']['sections'][i]['text'] = transformSection(domino.createDocument(json['remaining']['sections'][i]['text']));
+        }
+    }
+
+    function transformLeadProperties(json) {
+        if (!json) {
+            return;
+        }
+        if (json['image']) {
+            for (var url in json['image']['urls']) {
+                var src = getFullUrl(json['image']['urls'][url]);
+                var newSrc = getMediaUrl(src);
+                if (newSrc) {
+                    downloadFileQueue.push(src);
+                    json['image']['urls'][url] = newSrc;
+                }
+            }
+        }
+        if (json['pronunciation']) {
+            var src = getFullUrl(json['pronunciation']['url']);
+            var newSrc = getMediaUrl(src);
+            if (newSrc) {
+                downloadFileQueue.push(src);
+                json['pronunciation']['url'] = newSrc;
+            }
         }
     }
 
@@ -954,7 +971,7 @@ function saveArticles( finished ) {
     function treatMediaElementsForSection(dom) {
         /* Clean/rewrite image tags */
         var imgs = dom.getElementsByTagName('img');
-        var imgSrcCache = new Object();
+        var imgSrcCache = {};
 
         for (var i = 0; i < imgs.length; i++) {
             var img = imgs[i];
