@@ -1,13 +1,13 @@
 {
   "name": "mwoffliner",
-  "version": "0.0.0",
-  "description": "Parsoid HTML dump utility and ZIM file builder",
+  "version": "0.0.1",
+  "description": "Utility for creating a ZIM file composed of Content Service responses.",
   "main": "mwoffliner.js",
   "license": "GPL-3.0",
   "author": {
-    "name": "Emmanuel Engelhart",
-    "email": "kelson@kiwix.org",
-    "url": "http://www.kiwix.org"
+    "name": "Dmitry Brant",
+    "email": "dbrant@wikimedia.org",
+    "url": "https://www.mediawiki.org/wiki/Wikimedia_Apps/Team"
   },
   "scripts": {
     "mwoffliner": "node mwoffliner.js",
@@ -16,10 +16,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/kiwix/mwoffliner.git"
+    "url": "https://github.com/dbrant/mwoffliner"
   },
   "bugs": {
-    "url": "https://github.com/kiwix/mwoffliner/issues"
+    "url": "https://github.com/dbrant/mwoffliner/issues"
   },
   "dependencies": {
     "async": "^1.5.2",
@@ -36,7 +36,8 @@
   },
   "keywords": [
     "mediawiki",
-    "parsoid",
+    "content-service",
+	"offline",
     "zim"
   ]
 }
