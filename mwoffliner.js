@@ -7,30 +7,30 @@
 /* MODULE VARIABLE SECTION **********/
 /************************************/
 
-var fs = require( 'fs' );
-var domino = require( 'domino' );
-var async = require( 'async' );
-var http = require( 'follow-redirects' ).http;
-var https = require( 'follow-redirects' ).https;
-var zlib = require( 'zlib' );
-var urlParser = require( 'url' );
-var pathParser = require( 'path' );
-var homeDirExpander = require( 'expand-home-dir' );
-var mkdirp = require( 'mkdirp' );
-var countryLanguage = require( 'country-language' );
-var redis = require( 'redis' );
-var exec = require( 'child_process' ).exec;
-var spawn = require( 'child_process' ).spawn;
-var yargs = require( 'yargs' );
-var os = require( 'os' );
-var crypto = require( 'crypto' );
-var unicodeCutter = require( 'utf8-binary-cutter' );
+const fs = require( 'fs' );
+const domino = require( 'domino' );
+const async = require( 'async' );
+const http = require( 'follow-redirects' ).http;
+const https = require( 'follow-redirects' ).https;
+const zlib = require( 'zlib' );
+const urlParser = require( 'url' );
+const pathParser = require( 'path' );
+const homeDirExpander = require( 'expand-home-dir' );
+const mkdirp = require( 'mkdirp' );
+const countryLanguage = require( 'country-language' );
+const redis = require( 'redis' );
+const exec = require( 'child_process' ).exec;
+const spawn = require( 'child_process' ).spawn;
+const yargs = require( 'yargs' );
+const os = require( 'os' );
+const crypto = require( 'crypto' );
+const unicodeCutter = require( 'utf8-binary-cutter' );
 
 /************************************/
 /* Command Parsing ******************/
 /************************************/
 
-var argv = yargs.usage( 'Create a fancy HTML dump of a Mediawiki instance in a directory\nUsage: $0'
+const argv = yargs.usage( 'Create a fancy HTML dump of a Mediawiki instance in a directory\nUsage: $0'
 	   + '\nExample: node mwoffliner.js --mwUrl=https://en.wikipedia.org/ --adminEmail=foo@bar.net' )
     .require( [ 'mwUrl', 'adminEmail' ] )
     .describe( 'mwUrl', 'Mediawiki base URL' )
@@ -73,10 +73,10 @@ var argv = yargs.usage( 'Create a fancy HTML dump of a Mediawiki instance in a d
 /************************************/
 
 /* Formats */
-var dumps = [ '' ];
+let dumps = [ '' ];
 if ( argv.format ) {
     if (argv.format instanceof Array) {
-        dumps = new Array();
+        dumps = [];
         argv.format.forEach(function (value) {
             dumps.push(value == true ? '' : value);
         });
@@ -86,112 +86,112 @@ if ( argv.format ) {
 }
 
 /* Template code for any redirect to be written on the FS */
-var redirectTemplateCode = '<html><head><meta charset="UTF-8" /><title>{{ title }}</title><meta http-equiv="refresh" content="0; URL={{ target }}"></head><body></body></html>';
+const redirectTemplateCode = '<html><head><meta charset="UTF-8" /><title>{{ title }}</title><meta http-equiv="refresh" content="0; URL={{ target }}"></head><body></body></html>';
 
 /* All DOM nodes with on of these styles will be removed */
 /* On Wikivoyage 'noprint' remove also top banners like on 'South America'. */
-var cssClassBlackList = [ 'noprint', 'metadata', 'ambox', 'stub', 'topicon', 'magnify', 'navbar', 'mwe-math-mathml-inline' ];
+const cssClassBlackList = [ 'noprint', 'metadata', 'ambox', 'stub', 'topicon', 'magnify', 'navbar', 'mwe-math-mathml-inline' ];
 
 /* All DOM node with these styles will be deleted if no A node is included in the sub-tree */
-var cssClassBlackListIfNoLink = [ 'mainarticle', 'seealso', 'dablink', 'rellink', 'hatnote' ];
+const cssClassBlackListIfNoLink = [ 'mainarticle', 'seealso', 'dablink', 'rellink', 'hatnote' ];
 
 /* All DOM nodes which we should for to display */
-var cssClassDisplayList = [ 'thumb' ];
+const cssClassDisplayList = [ 'thumb' ];
 
 /* List of style to be removed */
-var cssClassCallsBlackList = [ 'plainlinks' ];
+const cssClassCallsBlackList = [ 'plainlinks' ];
 
 /* All nodes with one of these ids will be remove */
-var idBlackList = [ 'purgelink' ];
+const idBlackList = [ 'purgelink' ];
 
 /* HTTP user-agent string */
-var adminEmail = argv.adminEmail;
-var userAgentString = 'MWOffliner/HEAD';
+let adminEmail = argv.adminEmail;
+let userAgentString = 'MWOffliner/HEAD';
 if ( validateEmail( adminEmail ) ) {
     userAgentString += ' (' + adminEmail + ')';
 } else {
     console.error('Admin email ' + adminEmail + ' is not valid');
     process.exit(1);
 }
-var loginCookie = '';
+let loginCookie = '';
 
 /* Directory wehre everything is saved at the end of the process */
-var outputDirectory = argv.outputDirectory ? homeDirExpander( argv.outputDirectory ) + '/' : 'out/';
+let outputDirectory = argv.outputDirectory ? homeDirExpander( argv.outputDirectory ) + '/' : 'out/';
 
 /* Directory where temporary data are saved */
-var tmpDirectory = argv.tmpDirectory ? homeDirExpander( argv.tmpDirectory ) + '/' : 'tmp/';
-var deflateTmpHtml = false; //argv.deflateTmpHtml;
+let tmpDirectory = argv.tmpDirectory ? homeDirExpander( argv.tmpDirectory ) + '/' : 'tmp/';
+let deflateTmpHtml = false; //argv.deflateTmpHtml;
 
 /* Parsoid URL */
-var parsoidUrl = argv.parsoidUrl;
+let parsoidUrl = argv.parsoidUrl;
 
 /* ZIM custom Favicon */
-var customZimFavicon = argv.customZimFavicon;
+let customZimFavicon = argv.customZimFavicon;
 if ( customZimFavicon && !fs.existsSync( customZimFavicon ) ) {
     console.error('Path "' + customZimFavicon + '" is not a valid PNG file.');
     process.exit(1);
 }
 
 /* If ZIM is built, should temporary HTML directory be kept */
-var keepHtml = argv.keepHtml;
+let keepHtml = argv.keepHtml;
 
 /* List of articles is maybe in a file */
-var articleList = argv.articleList;
+let articleList = argv.articleList;
 
 /* Prefix part of the filename (radical) */
-var filenamePrefix = argv.filenamePrefix || '';
+let filenamePrefix = argv.filenamePrefix || '';
 
 /* Number of parallel requests */
-var cpuCount = os.cpus().length;
+let cpuCount = os.cpus().length;
 if ( argv.speed && isNaN( argv.speed ) ) {
     console.error('speed is not a number, please give a number value to --speed');
     process.exit(1);
 }
-var speed = cpuCount * ( argv.speed || 1 );
+let speed = cpuCount * ( argv.speed || 1 );
 
 /* Necessary to avoid problems with https */
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 /* Verbose */
-var verbose = argv.verbose;
+let verbose = argv.verbose;
 
 /* Optimize HTML */
-var minifyHtml = argv.minifyHtml;
+let minifyHtml = argv.minifyHtml;
 
 /* How to write redirects */
-var writeHtmlRedirects = argv.writeHtmlRedirects;
+let writeHtmlRedirects = argv.writeHtmlRedirects;
 
 /* File where redirects might be save if --writeHtmlRedirects is not set */
-var redirectsCacheFile;
+let redirectsCacheFile;
 
 /* Cache strategy */
-var skipHtmlCache = argv.skipHtmlCache;
-var skipCacheCleaning = argv.skipCacheCleaning;
+let skipHtmlCache = argv.skipHtmlCache;
+let skipCacheCleaning = argv.skipCacheCleaning;
 
 /* Should we keep ZIM file generation if ZIM file already exists */
-var resume = argv.resume;
+let resume = argv.resume;
 
 /* Path to a Redis socket */
-var redisSocket = argv.redisSocket ? argv.redisSocket : '/dev/shm/redis.sock';
+let redisSocket = argv.redisSocket ? argv.redisSocket : '/dev/shm/redis.sock';
 
 /* Default request timeout */
-var requestTimeout = argv.requestTimeout ? argv.requestTimeout : 60;
+let requestTimeout = argv.requestTimeout ? argv.requestTimeout : 60;
 
 /* Keep empty paragraphs */
-var keepEmptyParagraphs = argv.keepEmptyParagraphs;
+let keepEmptyParagraphs = argv.keepEmptyParagraphs;
 
 /* Include fulltext index in ZIM file */
-var withZimFullTextIndex = argv.withZimFullTextIndex;
+let withZimFullTextIndex = argv.withZimFullTextIndex;
 
 /* ZIM publisher */
-var publisher = argv.publisher || 'Kiwix';
+let publisher = argv.publisher || 'Wikimedia Foundation';
 
 /* Wikipedia/... URL */
-var mwUrl = argv.mwUrl;
-var hostParts = urlParser.parse( mwUrl ).hostname.split( '.' );
+let mwUrl = argv.mwUrl;
+let hostParts = urlParser.parse( mwUrl ).hostname.split( '.' );
 
 /* ZIM (content) creator */
-var creator = hostParts[0];
+let creator = hostParts[0];
 if ( hostParts.length > 1 ) {
     creator =
         hostParts[1] != 'wikipedia' &&
@@ -208,20 +208,20 @@ if ( hostParts.length > 1 ) {
 creator = creator.charAt( 0 ).toUpperCase() + creator.substr( 1 );
 
 /* Namespaces to mirror */
-var namespacesToMirror = new Array();
+let namespacesToMirror = [];
 
 /* License footer template code */
-var footerTemplateCode = '<div style="clear:both; background-image:linear-gradient(180deg, #E8E8E8, white); border-top: dashed 2px #AAAAAA; padding: 0.5em 0.5em 2em 0.5em; margin-top: 1em; direction: ltr;">This article is issued from <a class="external text" href="{{ webUrl }}{{ articleId }}?oldid={{ oldId }}">{{ creator }}</a>{% if date %} - version of the {{ date }}{% endif %}. The text is available under the <a class="external text" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution/Share Alike</a> but additional terms may apply for the media files.</div>';
+const footerTemplateCode = '<div style="clear:both; background-image:linear-gradient(180deg, #E8E8E8, white); border-top: dashed 2px #AAAAAA; padding: 0.5em 0.5em 2em 0.5em; margin-top: 1em; direction: ltr;">This article is issued from <a class="external text" href="{{ webUrl }}{{ articleId }}?oldid={{ oldId }}">{{ creator }}</a>{% if date %} - version of the {{ date }}{% endif %}. The text is available under the <a class="external text" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution/Share Alike</a> but additional terms may apply for the media files.</div>';
 
 /************************************/
 /* CONSTANT VARIABLE SECTION ********/
 /************************************/
 
-var styleDirectory = 's';
-var mediaDirectory = 'm';
-var javascriptDirectory = 'j';
-var mediaRegex = /^(.*\/)([^\/]+)(\/)(\d+px-|)(.+?)(\.[A-Za-z0-9]{2,6}|)(\.[A-Za-z0-9]{2,6}|)$/;
-var htmlTemplateCode = function(){/*
+let styleDirectory = 's';
+let mediaDirectory = 'm';
+let javascriptDirectory = 'j';
+let mediaRegex = /^(.*\/)([^\/]+)(\/)(\d+px-|)(.+?)(\.[A-Za-z0-9]{2,6}|)(\.[A-Za-z0-9]{2,6}|)$/;
+let htmlTemplateCode = function(){/*
 <!DOCTYPE html>
 <html>
   <head>
@@ -247,54 +247,53 @@ var htmlTemplateCode = function(){/*
 /* SYSTEM VARIABLE SECTION **********/
 /************************************/
 
-var INFINITY_WIDTH = 9999999;
-var ltr = true;
-var autoAlign = ltr ? 'left' : 'right';
-var revAutoAlign = ltr ? 'right' : 'left';
-var subTitle = '';
-var langIso2 = 'en';
-var langIso3 = 'eng';
-var name = argv.customZimTitle || '';
-var description = argv.customZimDescription || '';
-var mainPageId = argv.customMainPage || '';
-var articleIds = {};
-var namespaces = {};
-var mwWikiPath = argv.mwWikiPath !== undefined && argv.mwWikiPath !== true ? argv.mwWikiPath : 'wiki';
-var webUrl = mwUrl + mwWikiPath + '/';
-var webUrlHost =  urlParser.parse( webUrl ).host;
-var webUrlPath = urlParser.parse( webUrl ).pathname;
-var webUrlPort = getRequestOptionsFromUrl( webUrl ).port;
-var mwApiPath = argv.mwApiPath || 'w/api.php';
-var apiUrl = mwUrl + mwApiPath + '?';
+let INFINITY_WIDTH = 9999999;
+let ltr = true;
+let autoAlign = ltr ? 'left' : 'right';
+let revAutoAlign = ltr ? 'right' : 'left';
+let subTitle = '';
+let langIso2 = 'en';
+let langIso3 = 'eng';
+let name = argv.customZimTitle || '';
+let description = argv.customZimDescription || '';
+let mainPageId = argv.customMainPage || '';
+let articleIds = {};
+let namespaces = {};
+let mwWikiPath = argv.mwWikiPath !== undefined && argv.mwWikiPath !== true ? argv.mwWikiPath : 'wiki';
+let webUrl = mwUrl + mwWikiPath + '/';
+let webUrlHost =  urlParser.parse( webUrl ).host;
+let webUrlPath = urlParser.parse( webUrl ).pathname;
+let webUrlPort = getRequestOptionsFromUrl( webUrl ).port;
+let mwApiPath = argv.mwApiPath || 'w/api.php';
+let apiUrl = mwUrl + mwApiPath + '?';
 
-var parsoidContentType = 'json';
+let parsoidContentType = 'json';
 if ( !parsoidUrl ) {
     parsoidUrl = apiUrl + "action=visualeditor&format=json&paction=parse&page=";
 }
 
-var nopic = false;
-var nozim = false;
-var filenameRadical = '';
-var htmlRootPath = '';
-var cacheDirectory = '';
-var cacheDirectory = ( argv.cacheDirectory ? argv.cacheDirectory : pathParser.resolve( process.cwd(), 'cac' ) ) + '/';
-var mwUsername = argv.mwUsername || '';
-var mwDomain = argv.mwDomain || '';
-var mwPassword = argv.mwPassword || '';
+let nopic = false;
+let nozim = false;
+let filenameRadical = '';
+let htmlRootPath = '';
+let cacheDirectory = ( argv.cacheDirectory ? argv.cacheDirectory : pathParser.resolve( process.cwd(), 'cac' ) ) + '/';
+let mwUsername = argv.mwUsername || '';
+let mwDomain = argv.mwDomain || '';
+let mwPassword = argv.mwPassword || '';
 
 /************************************/
 /* CONTENT DATE *********************/
 /************************************/
 
-var date = new Date();
-var contentDate = date.getFullYear() + '-' + ( '0' + ( date.getMonth() + 1 ) ).slice( -2 );
+let date = new Date();
+let contentDate = date.getFullYear() + '-' + ( '0' + ( date.getMonth() + 1 ) ).slice( -2 );
 
 /************************************/
 /* RUNNING CODE *********************/
 /************************************/
 
 /* Check if opt. binaries are available */
-var optBinaries = [ 'jpegoptim --version', 'pngquant --version', 'gifsicle --version', 'advdef --version', 'file --help', 'stat --version', 'convert --version' ];
+let optBinaries = [ 'jpegoptim --version', 'pngquant --version', 'gifsicle --version', 'advdef --version', 'file --help', 'stat --version', 'convert --version' ];
 try {
     dumps.forEach(function (dump) {
         if (dump.toLowerCase().indexOf('nozim') < 0) {
@@ -314,12 +313,12 @@ optBinaries.forEach( function( cmd ) {
 });
 
 /* Setup redis client */
-var redisClient = redis.createClient( redisSocket );
-var redisNamePrefix = (new Date).getTime();
-var redisRedirectsDatabase = redisNamePrefix + 'r';
-var redisMediaIdsDatabase = redisNamePrefix + 'm';
-var redisArticleDetailsDatabase = redisNamePrefix + 'd';
-var redisCachedMediaToCheckDatabase = redisNamePrefix + 'c';
+let redisClient = redis.createClient( redisSocket );
+let redisNamePrefix = (new Date).getTime();
+let redisRedirectsDatabase = redisNamePrefix + 'r';
+let redisMediaIdsDatabase = redisNamePrefix + 'm';
+let redisArticleDetailsDatabase = redisNamePrefix + 'd';
+let redisCachedMediaToCheckDatabase = redisNamePrefix + 'c';
 
 /* Get content */
 async.series(
@@ -1521,7 +1520,7 @@ var redirectQueue = async.queue( function( articleId, finished ) {
             var body = content.toString();
             try {
                 if (!JSON.parse(body)['error']) {
-                    var redirects = new Object();
+                    var redirects = {};
                     var redirectsCount = 0;
                     JSON.parse(body)['query']['backlinks'].map(function (entry) {
                         redirects[entry['title'].replace(/ /g, '_')] = articleId;
@@ -1574,8 +1573,8 @@ function getArticleIds( finished ) {
         var entries = json['query'] && json['query']['pages'];
 
         if (entries) {
-            var redirectQueueValues = new Array();
-            var details = new Object();
+            var redirectQueueValues = [];
+            var details = {};
             Object.keys(entries).map(function (key) {
                 var entry = entries[key];
                 entry['title'] = entry['title'].replace(/ /g, '_');
@@ -1931,7 +1930,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
             options = getRequestOptionsFromUrl(url, true);
             request = ( protocol ).get(options, function (response) {
                 if (response.statusCode == 200) {
-                    var chunks = new Array();
+                    var chunks = [];
                     response.on('data', function (chunk) {
                         chunks.push(chunk);
                     });
