@@ -25,6 +25,7 @@ const yargs = require( 'yargs' );
 const os = require( 'os' );
 const crypto = require( 'crypto' );
 const unicodeCutter = require( 'utf8-binary-cutter' );
+const util = require( './util.js' );
 
 /************************************/
 /* Command Parsing ******************/
@@ -107,10 +108,10 @@ const idBlackList = [ 'purgelink' ];
 /* HTTP user-agent string */
 let adminEmail = argv.adminEmail;
 let userAgentString = 'MWOffliner/HEAD';
-if ( validateEmail( adminEmail ) ) {
+if ( util.validateEmail( adminEmail ) ) {
     userAgentString += ' (' + adminEmail + ')';
 } else {
-    console.error('Admin email ' + adminEmail + ' is not valid');
+    printErr('Admin email ' + adminEmail + ' is not valid');
     process.exit(1);
 }
 let loginCookie = '';
@@ -128,7 +129,7 @@ let parsoidUrl = argv.parsoidUrl;
 /* ZIM custom Favicon */
 let customZimFavicon = argv.customZimFavicon;
 if ( customZimFavicon && !fs.existsSync( customZimFavicon ) ) {
-    console.error('Path "' + customZimFavicon + '" is not a valid PNG file.');
+    printErr('Path "' + customZimFavicon + '" is not a valid PNG file.');
     process.exit(1);
 }
 
@@ -144,7 +145,7 @@ let filenamePrefix = argv.filenamePrefix || '';
 /* Number of parallel requests */
 let cpuCount = os.cpus().length;
 if ( argv.speed && isNaN( argv.speed ) ) {
-    console.error('speed is not a number, please give a number value to --speed');
+    printErr('speed is not a number, please give a number value to --speed');
     process.exit(1);
 }
 let speed = cpuCount * ( argv.speed || 1 );
@@ -205,7 +206,7 @@ if ( hostParts.length > 1 ) {
         hostParts[0].length > hostParts[1].length
             ? hostParts[0] : hostParts[1];
 }
-creator = creator.charAt( 0 ).toUpperCase() + creator.substr( 1 );
+creator = creator.charAt(0).toUpperCase() + creator.substr( 1 );
 
 /* Namespaces to mirror */
 let namespacesToMirror = [];
@@ -305,7 +306,7 @@ try {
 optBinaries.forEach( function( cmd ) {
     exec(cmd, function (error, stdout, stderr) {
         if (error) {
-            console.error('Failed to find binary "' + cmd.split(' ')[0] + '": (' + error + ')');
+            printErr('Failed to find binary "' + cmd.split(' ')[0] + '": (' + error + ')');
             process.exit(1);
         }
     }, true, true);
@@ -436,7 +437,7 @@ const optimizationQueue = async.queue( function ( file, finished ) {
     function getOptimizationCommand(path, forcedType) {
         let ext = pathParser.extname(path).split('.')[1] || '';
         let basename = path.substring(0, path.length - ext.length - 1) || '';
-        let tmpExt = '.' + randomString(5) + '.' + ext;
+        let tmpExt = '.' + util.randomString(5) + '.' + ext;
         let tmpPath = basename + tmpExt;
         let type = forcedType || ext;
 
@@ -491,12 +492,12 @@ const optimizationQueue = async.queue( function ( file, finished ) {
                         },
                         function (error, skip) {
                             if (error) {
-                                console.error('Executing command : ' + cmd);
-                                console.error('Failed to optim ' + path + ', with size=' + file.size + ' (' + error + ')');
+                                printErr('Executing command : ' + cmd);
+                                printErr('Failed to optim ' + path + ', with size=' + file.size + ' (' + error + ')');
                             } else if (skip) {
                                 printLog('Optimization skipped for ' + path + ', with size=' + file.size + ', a better version was downloaded meanwhile.');
                             } else {
-                                printLog('Successfuly optimized ' + path);
+                                printLog('Successfully optimized ' + path);
                             }
                             finished();
                         }
@@ -505,7 +506,7 @@ const optimizationQueue = async.queue( function ( file, finished ) {
                     finished();
                 }
             } else {
-                console.error('Failed to start to optim ' + path + '. Size should be ' + file.size +
+                printErr('Failed to start to optim ' + path + '. Size should be ' + file.size +
                     ' (' + ( error ? 'file was probably deleted, here the error: ' + error : ( stats ? stats.size : 'No stats information' ) ) + ')');
                 finished();
             }
@@ -536,7 +537,7 @@ function login( finished ) {
             url = url + '&lgdomain=' + mwDomain;
         }
 
-        downloadContent(url, function (content, responseHeaders) {
+        downloadContent(url, function (content) {
             let body = content.toString();
             let jsonResponse = JSON.parse(body)['login'];
             loginCookie = jsonResponse['cookieprefix'] + '_session=' + jsonResponse['sessionid'];
@@ -545,7 +546,7 @@ function login( finished ) {
                 finished();
             } else {
                 url = url + '&lgtoken=' + jsonResponse['token'];
-                downloadContent(url, function (content, responseHeaders) {
+                downloadContent(url, function (content) {
                     body = content.toString();
                     jsonResponse = JSON.parse(body)['login'];
 
@@ -553,7 +554,7 @@ function login( finished ) {
                         loginCookie = jsonResponse['cookieprefix'] + '_session=' + jsonResponse['sessionid'];
                         finished();
                     } else {
-                        console.error('Login failed');
+                        printErr('Login failed');
                         process.exit(1);
                     }
                 });
@@ -615,7 +616,7 @@ function createDirectories( finished ) {
         ],
         function (error) {
             if (error) {
-                console.error('Unable to create mandatory directories : ' + error);
+                printErr('Unable to create mandatory directories : ' + error);
                 process.exit(1);
             } else {
                 finished();
@@ -623,26 +624,16 @@ function createDirectories( finished ) {
         });
 }
 
-function randomString( len ) {
-    let randomString = '';
-    let charSet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < len; i++) {
-        let randomPoz = Math.floor(Math.random() * charSet.length);
-        randomString += charSet.substring(randomPoz, randomPoz + 1);
-    }
-    return randomString;
-}
-
 function extractTargetIdFromHref( href ) {
     try {
         let pathname = urlParser.parse(href, false, true).pathname || '';
         if (pathname.indexOf('./') == 0) {
-            return myDecodeURIComponent(pathname.substr(2));
+            return util.myDecodeURIComponent(pathname.substr(2));
         } else if (pathname.indexOf(webUrlPath) == 0) {
-            return myDecodeURIComponent(pathname.substr(webUrlPath.length));
+            return util.myDecodeURIComponent(pathname.substr(webUrlPath.length));
         }
     } catch (error) {
-        console.error('Unable to parse href ' + href);
+        printErr('Unable to parse href ' + href);
         return '';
     }
 }
@@ -745,7 +736,7 @@ function buildZIM( finished ) {
                     zimPath],
                 function (error) {
                     if (error) {
-                        console.error('Failed to build successfuly the ZIM file ' + zimPath + ' (' + error + ')');
+                        printErr('Failed to build successfully the ZIM file ' + zimPath + ' (' + error + ')');
                         process.exit(1);
                     } else {
                         printLog('ZIM file built at ' + zimPath);
@@ -759,7 +750,7 @@ function buildZIM( finished ) {
                     }
                 }, !verbose, !verbose);
         }).on('error', function (error) {
-            console.error(error)
+            printErr(error)
         });
     } else {
         finished();
@@ -787,11 +778,11 @@ function drainDownloadFileQueue( finished ) {
             let drainBackup = downloadFileQueue.drain;
             downloadFileQueue.drain = function (error) {
                 if (error) {
-                    console.error('Error by downloading images' + error);
+                    printErr('Error by downloading images' + error);
                     process.exit(1);
                 } else {
                     if (downloadFileQueue.length() == 0) {
-                        printLog('All images successfuly downloaded');
+                        printLog('All images successfully downloaded');
                         downloadFileQueue.drain = drainBackup;
                         finished();
                     }
@@ -817,11 +808,11 @@ function drainOptimizationQueue( finished ) {
             let drainBackup = optimizationQueue.drain;
             optimizationQueue.drain = function (error) {
                 if (error) {
-                    console.error('Error by optimizing images' + error);
+                    printErr('Error by optimizing images' + error);
                     process.exit(1);
                 } else {
                     if (optimizationQueue.length() == 0) {
-                        printLog('All images successfuly optimized');
+                        printLog('All images successfully optimized');
                         optimizationQueue.drain = drainBackup;
                         finished();
                     }
@@ -839,7 +830,7 @@ function cacheRedirects( finished ) {
     function cacheRedirect(redirectId, finished) {
         redisClient.hget(redisRedirectsDatabase, redirectId, function (error, target) {
             if (error) {
-                console.error('Unable to get a redirect target from redis for caching: ' + error);
+                printErr('Unable to get a redirect target from redis for caching: ' + error);
                 process.exit(1);
             } else {
                 if (target) {
@@ -856,15 +847,15 @@ function cacheRedirects( finished ) {
 
     redisClient.hkeys(redisRedirectsDatabase, function (error, keys) {
         if (error) {
-            console.error('Unable to get redirect keys from redis for caching: ' + error);
+            printErr('Unable to get redirect keys from redis for caching: ' + error);
             process.exit(1);
         } else {
             async.eachLimit(keys, speed, cacheRedirect, function (error) {
                 if (error) {
-                    console.error('Unable to cache a redirect: ' + error);
+                    printErr('Unable to cache a redirect: ' + error);
                     process.exit(1);
                 } else {
-                    printLog('All redirects were cached successfuly.');
+                    printLog('All redirects were cached successfully.');
                     finished();
                 }
             });
@@ -878,7 +869,7 @@ function saveHtmlRedirects( finished ) {
     function saveHtmlRedirect(redirectId, finished) {
         redisClient.hget(redisRedirectsDatabase, redirectId, function (error, target) {
             if (error) {
-                console.error('Unable to get a redirect target from redis for saving: ' + error);
+                printErr('Unable to get a redirect target from redis for saving: ' + error);
                 process.exit(1);
             } else {
                 if (target) {
@@ -900,15 +891,15 @@ function saveHtmlRedirects( finished ) {
 
     redisClient.hkeys(redisRedirectsDatabase, function (error, keys) {
         if (error) {
-            console.error('Unable to get redirect keys from redis for saving: ' + error);
+            printErr('Unable to get redirect keys from redis for saving: ' + error);
             process.exit(1);
         } else {
             async.eachLimit(keys, speed, saveHtmlRedirect, function (error) {
                 if (error) {
-                    console.error('Unable to save a HTML redirect: ' + error);
+                    printErr('Unable to save a HTML redirect: ' + error);
                     process.exit(1);
                 } else {
-                    printLog('All redirects were saved successfuly as HTML files.');
+                    printLog('All redirects were saved successfully as HTML files.');
                     finished();
                 }
             });
@@ -1001,7 +992,7 @@ function saveArticles( finished ) {
                         if (linkNode.parentNode) {
                             linkNode.parentNode.replaceChild(img, linkNode);
                         } else {
-                            deleteNode(img);
+                            util.deleteNode(img);
                         }
                     }
                 }
@@ -1028,11 +1019,11 @@ function saveArticles( finished ) {
                         /* Remove srcset */
                         img.removeAttribute('srcset');
                     } else {
-                        deleteNode(img);
+                        util.deleteNode(img);
                     }
                 }
             } else {
-                deleteNode(img);
+                util.deleteNode(img);
             }
         }
 
@@ -1051,23 +1042,23 @@ function saveArticles( finished ) {
                 let imageNodeTypeof = imageNode.getAttribute('typeof') || '';
 
                 if (imageNodeTypeof.indexOf('mw:Image/Thumb') >= 0) {
-                    let descriptions = imageNode.getElementsByTagName('figcaption')
+                    let descriptions = imageNode.getElementsByTagName('figcaption');
                     let description = descriptions.length > 0 ? descriptions[0] : undefined;
                     let imageWidth = parseInt(image.getAttribute('width'));
 
                     let thumbDiv = dom.createElement('div');
                     thumbDiv.setAttribute('class', 'thumb');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
-                        thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tright'));
+                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tright'));
                     } else if (imageNodeClass.search('mw-halign-left') >= 0) {
-                        thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tleft'));
+                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tleft'));
                     } else if (imageNodeClass.search('mw-halign-center') >= 0) {
-                        thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tnone'));
+                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tnone'));
                         let centerDiv = dom.createElement('center');
                         centerDiv.appendChild(thumbDiv);
                         thumbDiv = centerDiv;
                     } else {
-                        thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 't' + revAutoAlign));
+                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 't' + revAutoAlign));
                     }
 
                     let thumbinnerDiv = dom.createElement('div');
@@ -1089,17 +1080,17 @@ function saveArticles( finished ) {
                 } else if (imageNodeTypeof.indexOf('mw:Image') >= 0) {
                     let div = dom.createElement('div');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
-                        div.setAttribute('class', concatenateToAttribute(div.getAttribute('class'), 'floatright'));
+                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'floatright'));
                     } else if (imageNodeClass.search('mw-halign-left') >= 0) {
-                        div.setAttribute('class', concatenateToAttribute(div.getAttribute('class'), 'floatleft'));
+                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'floatleft'));
                     } else if (imageNodeClass.search('mw-halign-center') >= 0) {
-                        div.setAttribute('class', concatenateToAttribute(div.getAttribute('class'), 'center'));
+                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'center'));
                     }
                     div.appendChild(isStillLinked ? image.parentNode : image);
                     imageNode.parentNode.replaceChild(div, imageNode);
                 }
             } else {
-                deleteNode(imageNode);
+                util.deleteNode(imageNode);
             }
         }
     }
@@ -1111,7 +1102,7 @@ function saveArticles( finished ) {
             let href = linkNode.getAttribute('href') || '';
 
             if (!href) {
-                deleteNode(linkNode);
+                util.deleteNode(linkNode);
                 return;
             }
 
@@ -1178,7 +1169,7 @@ function saveArticles( finished ) {
                 /* Add 'external' class to external links */
                 if (rel.substring(0, 10) === 'mw:ExtLink' ||
                     rel === 'mw:WikiLink/Interwiki') {
-                    linkNode.setAttribute('class', concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
+                    linkNode.setAttribute('class', util.concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
                 }
 
                 /* Rewrite external links starting with // */
@@ -1209,7 +1200,7 @@ function saveArticles( finished ) {
                         try {
                             redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
                                 if (error) {
-                                    console.error('Unable to check redirect existence with redis: ' + error);
+                                    printErr('Unable to check redirect existence with redis: ' + error);
                                     process.exit(1);
                                 } else {
                                     if (res) {
@@ -1223,7 +1214,7 @@ function saveArticles( finished ) {
                                 }
                             });
                         } catch (error) {
-                            console.error("Exception by requesting redis " + error);
+                            printErr("Exception by requesting redis " + error);
                             process.exit(1);
                         }
                     }
@@ -1236,7 +1227,7 @@ function saveArticles( finished ) {
                     } else {
                         redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
                             if (error) {
-                                console.error('Unable to check redirect existence with redis: ' + error);
+                                printErr('Unable to check redirect existence with redis: ' + error);
                                 process.exit(1);
                             } else {
                                 if (res) {
@@ -1269,7 +1260,7 @@ function saveArticles( finished ) {
         let galleryboxes = dom.getElementsByClassName('gallerybox');
         for (let i = 0; i < galleryboxes.length; i++) {
             if (( !galleryboxes[i].getElementsByClassName('thumb').length ) || ( nopic )) {
-                deleteNode(galleryboxes[i]);
+                util.deleteNode(galleryboxes[i]);
             }
         }
 
@@ -1277,7 +1268,7 @@ function saveArticles( finished ) {
         if (nopic) {
             let maps = dom.getElementsByTagName('map');
             for (let i = 0; i < maps.length; i++) {
-                deleteNode(maps[i]);
+                util.deleteNode(maps[i]);
             }
         }
 
@@ -1293,7 +1284,7 @@ function saveArticles( finished ) {
                     sup.innerHTML = span.innerHTML;
                     span.parentNode.replaceChild(sup, span);
                 } else {
-                    deleteNode(span);
+                    util.deleteNode(span);
                 }
             }
         }
@@ -1302,7 +1293,7 @@ function saveArticles( finished ) {
         idBlackList.map(function (id) {
             let node = dom.getElementById(id);
             if (node) {
-                deleteNode(node);
+                util.deleteNode(node);
             }
         });
 
@@ -1310,7 +1301,7 @@ function saveArticles( finished ) {
         cssClassBlackList.map(function (classname) {
             let nodes = dom.getElementsByClassName(classname);
             for (let i = 0; i < nodes.length; i++) {
-                deleteNode(nodes[i]);
+                util.deleteNode(nodes[i]);
             }
         });
 
@@ -1319,7 +1310,7 @@ function saveArticles( finished ) {
             let nodes = dom.getElementsByClassName(classname);
             for (let i = 0; i < nodes.length; i++) {
                 if (nodes[i].getElementsByTagName('a').length === 0) {
-                    deleteNode(nodes[i]);
+                    util.deleteNode(nodes[i]);
                 }
             }
         });
@@ -1335,7 +1326,7 @@ function saveArticles( finished ) {
         /* Remove link tags */
         let links = dom.getElementsByTagName('link');
         for (let i = 0; i < links.length; i++) {
-            deleteNode(links[i]);
+            util.deleteNode(links[i]);
         }
 
         /* Remove useless DOM nodes without children */
@@ -1344,7 +1335,7 @@ function saveArticles( finished ) {
             let nodes = dom.getElementsByTagName(tagName);
             for (let i = 0; i < nodes.length; i++) {
                 if (!nodes[i].innerHTML) {
-                    deleteNode(nodes[i]);
+                    util.deleteNode(nodes[i]);
                 }
             }
         });
@@ -1352,7 +1343,7 @@ function saveArticles( finished ) {
         /* Remove useless input nodes */
         let inputNodes = dom.getElementsByTagName('input');
         for (let i = 0; i < inputNodes.length; i++) {
-            deleteNode(inputNodes[i]);
+            util.deleteNode(inputNodes[i]);
         }
 
         /* Remove empty paragraphs */
@@ -1361,17 +1352,17 @@ function saveArticles( finished ) {
                 let paragraphNodes = dom.getElementsByTagName('h' + level);
                 for (let i = 0; i < paragraphNodes.length; i++) {
                     let paragraphNode = paragraphNodes[i];
-                    let nextElementNode = getNextSiblingElement(paragraphNode);
+                    let nextElementNode = util.getNextSiblingElement(paragraphNode);
 
                     /* No nodes */
                     if (!nextElementNode) {
-                        deleteNode(paragraphNode);
+                        util.deleteNode(paragraphNode);
                     } else {
 
                         /* Delete if nextElementNode is a paragraph with <= level */
                         let nextElementNodeTag = nextElementNode.tagName.toLowerCase();
                         if (nextElementNodeTag.length > 1 && nextElementNodeTag[0] == 'h' && !isNaN(nextElementNodeTag[1]) && nextElementNodeTag[1] <= level) {
-                            deleteNode(paragraphNode);
+                            util.deleteNode(paragraphNode);
                         }
                     }
                 }
@@ -1432,7 +1423,7 @@ function saveArticles( finished ) {
                 let json = JSON.parse(content.toString());
 
                 if (!json['lead']) {
-                    console.error('Error retrieving article: ' + articleId);
+                    printErr('Error retrieving article: ' + articleId);
                 }
 
                 if (json) {
@@ -1446,7 +1437,7 @@ function saveArticles( finished ) {
 
                     writeArticle(json, articleId, function (error, result) {
                         if (error) {
-                            console.error('Error by preparing and saving file ' + error);
+                            printErr('Error by preparing and saving file ' + error);
                             process.exit(1);
                         } else {
                             printLog('Dumped successfully article ' + articleId);
@@ -1455,7 +1446,7 @@ function saveArticles( finished ) {
                     });
 
                 } else {
-                    console.error('Error retrieving article: ' + articleId);
+                    printErr('Error retrieving article: ' + articleId);
 
                     delete articleIds[articleId];
                     finished();
@@ -1469,7 +1460,7 @@ function saveArticles( finished ) {
         saveArticle,
         function (error) {
             if (error) {
-                console.error('Unable to retrieve an article correctly: ' + error);
+                printErr('Unable to retrieve an article correctly: ' + error);
                 process.exit(1);
             } else {
                 printLog('All articles were retrieved and saved.');
@@ -1488,7 +1479,7 @@ function isMirrored( id ) {
     return ( id in articleIds );
 }
 
-function isSubpage( id ) {
+function isSubPage( id ) {
     if (id && id.indexOf('/') >= 0) {
         let namespace = id.indexOf(':') >= 0 ? id.substring(0, id.indexOf(':')).replace(/ /g, '_') : "";
         namespace = namespaces[namespace];
@@ -1504,7 +1495,7 @@ let redirectQueue = async.queue( function( articleId, finished ) {
     if (articleId) {
         printLog('Getting redirects for article ' + articleId + '...');
         let url = apiUrl + 'action=query&list=backlinks&blfilterredir=redirects&bllimit=max&format=json&bltitle=' + encodeURIComponent(articleId) + '&rawcontinue=';
-        downloadContent(url, function (content, responseHeaders) {
+        downloadContent(url, function (content) {
             let body = content.toString();
             try {
                 if (!JSON.parse(body)['error']) {
@@ -1518,7 +1509,7 @@ let redirectQueue = async.queue( function( articleId, finished ) {
                     if (redirectsCount) {
                         redisClient.hmset(redisRedirectsDatabase, redirects, function (error) {
                             if (error) {
-                                console.error('Unable to set redirects: ' + error);
+                                printErr('Unable to set redirects: ' + error);
                                 process.exit(1);
                             } else {
                                 finished();
@@ -1544,10 +1535,10 @@ function getArticleIds( finished ) {
     function drainRedirectQueue(finished) {
         redirectQueue.drain = function (error) {
             if (error) {
-                console.error('Unable to retrieve redirects for an article: ' + error);
+                printErr('Unable to retrieve redirects for an article: ' + error);
                 process.exit(1);
             } else {
-                printLog('All redirect ids retrieve successfuly.');
+                printLog('All redirect ids retrieve successfully.');
                 finished();
             }
         };
@@ -1568,7 +1559,7 @@ function getArticleIds( finished ) {
                 entry['title'] = entry['title'].replace(/ /g, '_');
 
                 if ('missing' in entry) {
-                    console.error('Article ' + entry['title'] + ' is not available on this wiki.');
+                    printErr('Article ' + entry['title'] + ' is not available on this wiki.');
                     delete articleIds[entry['title']];
                 } else {
                     redirectQueueValues.push(entry['title']);
@@ -1592,8 +1583,8 @@ function getArticleIds( finished ) {
                         printLog('Unable to get revisions for ' + entry['title'] + ', but entry exists in the database. Article was probably deleted meanwhile.');
                         delete articleIds[entry['title']];
                     } else {
-                        console.error('Unable to get revisions for ' + entry['title']);
-                        console.error('JSON was ' + body);
+                        printErr('Unable to get revisions for ' + entry['title']);
+                        printErr('JSON was ' + body);
                         process.exit(1);
                     }
                 }
@@ -1604,7 +1595,7 @@ function getArticleIds( finished ) {
             if (Object.keys(details).length) {
                 redisClient.hmset(redisArticleDetailsDatabase, details, function (error) {
                     if (error) {
-                        console.error('Unable to save article detail information to redis: ' + error);
+                        printErr('Unable to save article detail information to redis: ' + error);
                         process.exit(1);
                     }
                 });
@@ -1629,7 +1620,7 @@ function getArticleIds( finished ) {
         if (line) {
             let title = line.replace(/ /g, '_').replace('\r', '');
             let url = apiUrl + 'action=query&redirects&format=json&prop=revisions|coordinates&titles=' + encodeURIComponent(title);
-            setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content, responseHeaders) {
+            setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content) {
                 let body = content.toString();
                 if (body && body.length > 1) {
                     parseJson(body);
@@ -1647,7 +1638,7 @@ function getArticleIds( finished ) {
 
             async.eachLimit(lines, speed, getArticleIdsForLine, function (error) {
                 if (error) {
-                    console.error('Unable to get all article ids for a file: ' + error);
+                    printErr('Unable to get all article ids for a file: ' + error);
                     process.exit(1);
                 } else {
                     printLog('List of article ids to mirror completed');
@@ -1655,7 +1646,7 @@ function getArticleIds( finished ) {
                 }
             });
         } catch (error) {
-            console.error('Unable to open article list file: ' + error);
+            printErr('Unable to open article list file: ' + error);
             process.exit(1);
         }
     }
@@ -1668,7 +1659,7 @@ function getArticleIds( finished ) {
             function (finished) {
                 printLog('Getting article ids for namespace "' + namespace + '" ' + ( next != '' ? ' (from ' + ( namespace ? namespace + ':' : '') + next.split('=')[1] + ')' : '' ) + '...');
                 let url = apiUrl + 'action=query&generator=allpages&gapfilterredir=nonredirects&gaplimit=max&colimit=max&prop=revisions|coordinates&gapnamespace=' + namespaces[namespace].number + '&format=json' + '&rawcontinue=' + next;
-                setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content, responseHeaders) {
+                setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content) {
                     let body = content.toString();
                     if (body && body.length > 1) {
                         next = parseJson(body);
@@ -1684,7 +1675,7 @@ function getArticleIds( finished ) {
             },
             function (error) {
                 if (error) {
-                    console.error('Unable to download article ids: ' + error);
+                    printErr('Unable to download article ids: ' + error);
                     process.exit(1);
                 } else {
                     printLog('List of article ids to mirror completed for namespace "' + namespace + '"');
@@ -1697,10 +1688,10 @@ function getArticleIds( finished ) {
     function getArticleIdsForNamespaces() {
         async.eachLimit(namespacesToMirror, namespacesToMirror.length, getArticleIdsForNamespace, function (error) {
             if (error) {
-                console.error('Unable to get all article ids for in a namespace: ' + error);
+                printErr('Unable to get all article ids for in a namespace: ' + error);
                 process.exit(1);
             } else {
-                printLog('All articles ids (but without redirect ids) for all namespaces were successfuly retrieved.');
+                printLog('All articles ids (but without redirect ids) for all namespaces were successfully retrieved.');
                 drainRedirectQueue(finished);
             }
         });
@@ -1733,7 +1724,7 @@ function getArticleIds( finished ) {
         ],
         function (error) {
             if (error) {
-                console.error('Unable retrive article ids: ' + error);
+                printErr('Unable retrive article ids: ' + error);
                 process.exit(1);
             } else {
                 finished();
@@ -1765,7 +1756,7 @@ function createSubDirectories( finished ) {
         ],
         function (error) {
             if (error) {
-                console.error('Unable to create mandatory directories : ' + error);
+                printErr('Unable to create mandatory directories : ' + error);
                 process.exit(1);
             } else {
                 finished();
@@ -1794,19 +1785,6 @@ function getFullUrl( url, baseUrl ) {
     return url;
 }
 
-function deleteNode( node ) {
-    if (node.parentNode) {
-        node.parentNode.removeChild(node);
-    } else {
-        node.outerHTML = '';
-    }
-    node = undefined;
-}
-
-function concatenateToAttribute( old, add ) {
-    return old ? old + ' ' + add : add;
-}
-
 function downloadContentAndCache( url, callback, var1, var2, var3 ) {
     let cachePath = cacheDirectory + crypto.createHash('sha1').update(url).digest('hex').substr(0, 20);
     let cacheHeadersPath = cachePath + '.h';
@@ -1832,8 +1810,8 @@ function downloadContentAndCache( url, callback, var1, var2, var3 ) {
             if (error) {
                 downloadContent(url, function (content, responseHeaders) {
                     printLog('Caching ' + url + ' at ' + cachePath + '...');
-                    fs.writeFile(cacheHeadersPath, JSON.stringify(responseHeaders), function (error) {
-                        fs.writeFile(cachePath, content, function (error) {
+                    fs.writeFile(cacheHeadersPath, JSON.stringify(responseHeaders), function () {
+                        fs.writeFile(cachePath, content, function () {
                             callback(content, responseHeaders, var1, var2, var3);
                         });
                     });
@@ -1883,7 +1861,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
                 if (!calledFinished) {
                     calledFinished = true;
                     if (message) {
-                        console.error(message);
+                        printErr(message);
                         request.abort();
                     }
                     request = undefined;
@@ -1903,7 +1881,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
             } else if (options.protocol == 'https:') {
                 protocol = https;
             } else {
-                console.error('Unable to determine the protocol of the following url (' + options.protocol + '), switched back to ' + ( webUrlPort == 443 ? 'https' : 'http' ) + ': ' + url);
+                printErr('Unable to determine the protocol of the following url (' + options.protocol + '), switched back to ' + ( webUrlPort == 443 ? 'https' : 'http' ) + ': ' + url);
                 if (webUrlPort == 443) {
                     protocol = https;
                     url = url.replace(options.protocol, 'https:');
@@ -1911,7 +1889,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
                     protocol = http;
                     url = url.replace(options.protocol, 'http:');
                 }
-                console.error('New url is: ' + url);
+                printErr('New url is: ' + url);
             }
 
             /* Downloading */
@@ -1938,8 +1916,8 @@ function downloadContent( url, callback, var1, var2, var3 ) {
                         }
                     });
                     response.on('error', function (error) {
-                        socket.emit('agentRemove');
-                        socket.destroy();
+                        response.socket.emit('agentRemove');
+                        response.socket.destroy();
                         callFinished(0, 'Unable to download content [' + retryCount + '] ' + decodeURI(url) + ' (response error: ' + response.statusCode + ').');
                     });
                 } else {
@@ -1955,7 +1933,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
                 if (!socket.custom) {
                     socket.custom = true;
                     socket.on('error', function (error) {
-                        console.error('Socket timeout');
+                        printErr('Socket timeout');
                         socket.emit('agentRemove');
                         socket.destroy();
                         if (request) {
@@ -1963,7 +1941,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
                         }
                     });
                     socket.on('timeout', function (error) {
-                        console.error('Socket error');
+                        printErr('Socket error');
                         socket.emit('agentRemove');
                         socket.end();
                         if (request) {
@@ -1977,7 +1955,7 @@ function downloadContent( url, callback, var1, var2, var3 ) {
         },
         function (error, data) {
             if (error) {
-                console.error('Absolutly unable to retrieve async. URL: ' + error);
+                printErr('Absolutly unable to retrieve async. URL: ' + error);
 
                 /* Unfortunately we can not do that because there are
                  * article which simply will not be parsed correctly by
@@ -2004,7 +1982,7 @@ function downloadFileAndCache( url, callback ) {
             /* Set the redis entry if necessary */
             redisClient.hset(redisMediaIdsDatabase, filenameBase, width, function (error) {
                 if (error) {
-                    console.error('Unable to set redis entry for file to download ' + filenameBase + ': ' + error);
+                    printErr('Unable to set redis entry for file to download ' + filenameBase + ': ' + error);
                     process.exit(1);
                 } else {
                     let mediaPath = getMediaPath(url);
@@ -2019,7 +1997,7 @@ function downloadFileAndCache( url, callback ) {
                         try {
                             responseHeaders = JSON.parse(fs.readFileSync(cacheHeadersPath).toString());
                         } catch (error) {
-                            console.error('Error in downloadFileAndCache() JSON parsing of ' + cacheHeadersPath + ', error is: ' + error);
+                            printErr('Error in downloadFileAndCache() JSON parsing of ' + cacheHeadersPath + ', error is: ' + error);
                             responseHeaders = undefined;
                         }
 
@@ -2030,7 +2008,7 @@ function downloadFileAndCache( url, callback ) {
                             fs.symlink(cachePath, mediaPath, 'file', function (error) {
                                 if (error) {
                                     if (error.code != 'EEXIST') {
-                                        console.error('Unable to create symlink to ' + mediaPath + ' at ' + cachePath + ': ' + error);
+                                        printErr('Unable to create symlink to ' + mediaPath + ' at ' + cachePath + ': ' + error);
                                         process.exit(1);
                                     } else if (!skipCacheCleaning) {
                                         touch(cachePath);
@@ -2046,7 +2024,7 @@ function downloadFileAndCache( url, callback ) {
                             } else {
                                 redisClient.hset(redisCachedMediaToCheckDatabase, filenameBase, width, function (error) {
                                     if (error) {
-                                        console.error('Unable to set redis cache media to check ' + filenameBase + ': ' + error);
+                                        printErr('Unable to set redis cache media to check ' + filenameBase + ': ' + error);
                                         process.exit(1);
                                     }
                                 });
@@ -2059,19 +2037,19 @@ function downloadFileAndCache( url, callback ) {
 
                     /* Download the file if necessary */
                     if (toDownload) {
-                        downloadFile(url, cachePath, true, function (error, responseHeaders) {
+                        downloadFile(url, cachePath, true, function (error) {
                             if (error) {
                                 callback();
                             } else {
                                 printLog('Caching ' + filenameBase + ' at ' + cachePath + '...');
                                 fs.symlink(cachePath, mediaPath, 'file', function (error) {
                                     if (error && error.code != 'EEXIST') {
-                                        console.error('Unable to create symlink to ' + mediaPath + ' at ' + cachePath + ': ' + error);
+                                        printErr('Unable to create symlink to ' + mediaPath + ' at ' + cachePath + ': ' + error);
                                         process.exit(1);
                                     }
                                     fs.writeFile(cacheHeadersPath, JSON.stringify({width: width}), function (error) {
                                         if (error) {
-                                            console.error('Unable to write cache header at ' + cacheHeadersPath + ': ' + error);
+                                            printErr('Unable to write cache header at ' + cacheHeadersPath + ': ' + error);
                                             process.exit(1);
                                         }
                                         callback();
@@ -2094,7 +2072,7 @@ function downloadFileAndCache( url, callback ) {
 }
 
 function downloadFile( url, path, force, callback ) {
-    fs.stat(path, function (error, stats) {
+    fs.stat(path, function (error) {
         if (error && !force) {
             if (error.code == 'ENOENT') {
                 printLog(path + ' already downloaded, download will be skipped.');
@@ -2108,7 +2086,7 @@ function downloadFile( url, path, force, callback ) {
             downloadContent(url, function (content, responseHeaders) {
                 fs.writeFile(path, content, function (error) {
                     if (error) {
-                        console.error('Unable to write ' + path + ' (' + url + ')');
+                        printErr('Unable to write ' + path + ' (' + url + ')');
                         process.exit(1);
                     } else {
                         optimizationQueue.push({path: path, size: content.length});
@@ -2139,7 +2117,7 @@ function getMediaBase( url, escape ) {
     }
 
     if (!root) {
-        console.error('Unable to parse media url \"' + url + '\"');
+        printErr('Unable to parse media url \"' + url + '\"');
         return;
     }
 
@@ -2150,7 +2128,7 @@ function getMediaBase( url, escape ) {
 
     let filenameFirstVariant = parts[2];
     let filenameSecondVariant = parts[5] + (parts[6] || ".svg") + ( parts[7] || '' );
-    let filename = myDecodeURIComponent(filenameFirstVariant.length > filenameSecondVariant.length ?
+    let filename = util.myDecodeURIComponent(filenameFirstVariant.length > filenameSecondVariant.length ?
         filenameFirstVariant : filenameSecondVariant);
 
     /* Need to shorten the file due to filesystem limitations */
@@ -2190,7 +2168,7 @@ function getArticleBase( articleId, escape ) {
 
 function getSubTitle( finished ) {
     printLog('Getting sub-title...');
-    downloadContent(webUrl, function (content, responseHeaders) {
+    downloadContent(webUrl, function (content) {
         let html = content.toString();
         let doc = domino.createDocument(html);
         let subTitleNode = doc.getElementById('siteSub');
@@ -2202,7 +2180,7 @@ function getSubTitle( finished ) {
 function getSiteInfo( finished ) {
     printLog('Getting web site name...');
     let url = apiUrl + 'action=query&meta=siteinfo&format=json&siprop=general|namespaces|statistics|variables|category|wikidesc';
-    downloadContent(url, function (content, responseHeaders) {
+    downloadContent(url, function (content) {
         let body = content.toString();
         let entries = JSON.parse(body)['query']['general'];
 
@@ -2235,14 +2213,14 @@ function saveFavicon( finished ) {
 
     function resizeFavicon(finished) {
         let cmd = 'convert -thumbnail 48 "' + faviconPath + '" "' + faviconPath + '.tmp" ; mv  "' + faviconPath + '.tmp" "' + faviconPath + '" ';
-        exec(cmd, function (error, stdout, stderr) {
+        exec(cmd, function () {
             fs.stat(faviconPath, function (error, stats) {
                 optimizationQueue.push({path: faviconPath, size: stats.size}, function () {
                     finished(error);
                 });
             });
         }).on('error', function (error) {
-            console.error(error)
+            printErr(error)
         });
     }
 
@@ -2251,7 +2229,7 @@ function saveFavicon( finished ) {
         fs.writeFileSync(faviconPath, content);
         resizeFavicon(finished);
     } else {
-        downloadContent(apiUrl + 'action=query&meta=siteinfo&format=json', function (content, responseHeaders) {
+        downloadContent(apiUrl + 'action=query&meta=siteinfo&format=json', function (content) {
             let body = content.toString();
             let entries = JSON.parse(body)['query']['general'];
             let logoUrl = entries['logo'];
@@ -2295,10 +2273,7 @@ function getMainPage( finished ) {
 
     function createMainPageRedirect(finished) {
         printLog('Create main page redirection...');
-        let html = redirectTemplate({
-            title: mainPageId.replace(/_/g, ' '),
-            target: getArticleBase(mainPageId, true)
-        });
+        let html = redirectTemplateCode.replace("{{ title }}", mainPageId.replace(/_/g, ' ')).replace("{{ target }}", getArticleBase(mainPageId, true));
         writeMainPage(html, finished);
     }
 
@@ -2311,7 +2286,7 @@ function getMainPage( finished ) {
 
 function getNamespaces( finished ) {
     let url = apiUrl + 'action=query&meta=siteinfo&siprop=namespaces|namespacealiases&format=json';
-    downloadContent(url, function (content, responseHeaders) {
+    downloadContent(url, function (content) {
         let body = content.toString();
         let types = ['namespaces', 'namespacealiases'];
         types.map(function (type) {
@@ -2326,13 +2301,13 @@ function getNamespaces( finished ) {
                 let details = {'number': number, 'allowedSubpages': allowedSubpages, 'isContent': isContent};
 
                 /* Namespaces in local language */
-                namespaces[lcFirst(name)] = details;
-                namespaces[ucFirst(name)] = details;
+                namespaces[util.lcFirst(name)] = details;
+                namespaces[util.ucFirst(name)] = details;
 
                 /* Namespaces in English (if available) */
                 if (canonical) {
-                    namespaces[lcFirst(canonical)] = details;
-                    namespaces[ucFirst(canonical)] = details;
+                    namespaces[util.lcFirst(canonical)] = details;
+                    namespaces[util.ucFirst(canonical)] = details;
                 }
 
                 /* Is content to mirror */
@@ -2349,7 +2324,7 @@ function getNamespaces( finished ) {
 function getTextDirection( finished ) {
     printLog('Getting text direction...');
 
-    downloadContent(webUrl, function (content, responseHeaders) {
+    downloadContent(webUrl, function (content) {
         let body = content.toString();
         let doc = domino.createDocument(body);
         let contentNode = doc.getElementById('mw-content-text');
@@ -2364,7 +2339,7 @@ function getTextDirection( finished ) {
             ltr = true;
         }
 
-        /* Update alignement values */
+        /* Update alignment values */
         autoAlign = ltr ? 'left' : 'right';
         revAutoAlign = ltr ? 'right' : 'left';
 
@@ -2373,66 +2348,21 @@ function getTextDirection( finished ) {
     });
 }
 
-function lcFirst( str ) {
-    str += '';
-    let f = str.charAt(0).toLowerCase();
-    return f + str.substr(1);
-}
-
-function ucFirst( str ) {
-    str += '';
-    let f = str.charAt(0).toUpperCase();
-    return f + str.substr(1);
-}
-
-function myDecodeURIComponent( uri ) {
-    try {
-        return decodeURIComponent(uri);
-    } catch (error) {
-        console.error(error);
-        return uri;
-    }
-}
-
-function charAt( str, idx ) {
-    let ret = '';
-    str += '';
-    let end = str.length;
-
-    let surrogatePairs = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
-    while (( surrogatePairs.exec(str) ) != null) {
-        let li = surrogatePairs.lastIndex;
-        if (li - 2 < idx) {
-            idx++;
-        } else {
-            break;
-        }
-    }
-
-    if (idx >= end || idx < 0) {
-        return '';
-    }
-
-    ret += str.charAt(idx);
-
-    if (/[\uD800-\uDBFF]/.test(ret) && /[\uDC00-\uDFFF]/.test(str.charAt(idx + 1))) {
-        ret += str.charAt(idx + 1);
-    }
-
-    return ret;
-}
-
 function printLog( msg ) {
     if (verbose) {
         console.info(msg);
     }
 }
 
+function printErr( msg ) {
+    console.error(msg);
+}
+
 function executeTransparently( command, args, callback, nostdout, nostderr ) {
     try {
         let proc = spawn(command, args)
             .on('error', function (error) {
-                console.error('Error in executeTransparently(), ' + error);
+                printErr('Error in executeTransparently(), ' + error);
                 process.exit(1);
             });
 
@@ -2442,17 +2372,17 @@ function executeTransparently( command, args, callback, nostdout, nostderr ) {
                     printLog(data.toString().replace(/[\n\r]/g, ''));
                 })
                 .on('error', function (error) {
-                    console.error('STDOUT output error: ' + error);
+                    printErr('STDOUT output error: ' + error);
                 });
         }
 
         if (!nostderr) {
             proc.stderr
                 .on('data', function (data) {
-                    console.error(data.toString().replace(/[\n\r]/g, ''));
+                    printErr(data.toString().replace(/[\n\r]/g, ''));
                 })
                 .on('error', function (error) {
-                    console.error('STDERR output error: ' + error);
+                    printErr('STDERR output error: ' + error);
                 });
         }
 
@@ -2464,28 +2394,15 @@ function executeTransparently( command, args, callback, nostdout, nostderr ) {
     }
 }
 
-function validateEmail( email ) {
-    let emailRegex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-    return emailRegex.test(email);
-}
-
 function touch( paths ) {
     let currentDate = Date.now();
-    paths = paths instanceof Array ? paths : [paths]
+    paths = paths instanceof Array ? paths : [paths];
     paths.map(function (path) {
         fs.utimes(path, currentDate, currentDate);
     });
 }
 
-function getNextSiblingElement( node ) {
-    let sibling = node.nextSibling;
-    while (sibling && sibling.nodeType != 1 /* ELEMENT_NODE */) {
-        sibling = sibling.nextSibling;
-    }
-    return sibling;
-}
-
 process.on( 'uncaughtException', function( error ) {
-    console.error(error.stack);
+    printErr(error.stack);
     process.exit(42);
 });
