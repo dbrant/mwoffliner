@@ -267,7 +267,6 @@ let webUrlPort = getRequestOptionsFromUrl( webUrl ).port;
 let mwApiPath = argv.mwApiPath || 'w/api.php';
 let apiUrl = mwUrl + mwApiPath + '?';
 
-let parsoidContentType = 'json';
 if ( !parsoidUrl ) {
     parsoidUrl = apiUrl + "action=visualeditor&format=json&paction=parse&page=";
 }
@@ -431,15 +430,15 @@ async.series(
 /************************************/
 
 /* Setting up media optimization queue */
-var optimizationQueue = async.queue( function ( file, finished ) {
-    var path = file.path;
+const optimizationQueue = async.queue( function ( file, finished ) {
+    let path = file.path;
 
     function getOptimizationCommand(path, forcedType) {
-        var ext = pathParser.extname(path).split('.')[1] || '';
-        var basename = path.substring(0, path.length - ext.length - 1) || '';
-        var tmpExt = '.' + randomString(5) + '.' + ext;
-        var tmpPath = basename + tmpExt;
-        var type = forcedType || ext;
+        let ext = pathParser.extname(path).split('.')[1] || '';
+        let basename = path.substring(0, path.length - ext.length - 1) || '';
+        let tmpExt = '.' + randomString(5) + '.' + ext;
+        let tmpPath = basename + tmpExt;
+        let type = forcedType || ext;
 
         /* Escape paths */
         path = path.replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
@@ -460,7 +459,7 @@ var optimizationQueue = async.queue( function ( file, finished ) {
     if (path) {
         fs.stat(path, function (error, stats) {
             if (!error && stats.size == file.size) {
-                var cmd = getOptimizationCommand(path);
+                let cmd = getOptimizationCommand(path);
 
                 if (cmd) {
                     async.retry(5,
@@ -474,7 +473,7 @@ var optimizationQueue = async.queue( function ( file, finished ) {
                                             finished('File to optim is smaller (before optim) than it should.');
                                         } else {
                                             exec('file -b --mime-type "' + path + '"', function (error, stdout, stderr) {
-                                                var type = stdout.replace(/image\//, '').replace(/[\n\r]/g, '');
+                                                let type = stdout.replace(/image\//, '').replace(/[\n\r]/g, '');
                                                 cmd = getOptimizationCommand(path, type);
 
                                                 if (cmd) {
@@ -518,7 +517,7 @@ var optimizationQueue = async.queue( function ( file, finished ) {
 }, cpuCount * 2 );
 
 /* Setting up the downloading queue */
-var downloadFileQueue = async.queue( function ( url, finished ) {
+const downloadFileQueue = async.queue( function ( url, finished ) {
     if (url) {
         downloadFileAndCache(url, finished);
     } else {
@@ -532,14 +531,14 @@ var downloadFileQueue = async.queue( function ( url, finished ) {
 
 function login( finished ) {
     if (mwUsername != '' && mwPassword != '') {
-        var url = apiUrl + 'action=login&format=json&lgname=' + mwUsername + '&lgpassword=' + mwPassword;
+        let url = apiUrl + 'action=login&format=json&lgname=' + mwUsername + '&lgpassword=' + mwPassword;
         if (mwDomain != '') {
             url = url + '&lgdomain=' + mwDomain;
         }
 
         downloadContent(url, function (content, responseHeaders) {
-            var body = content.toString();
-            var jsonResponse = JSON.parse(body)['login'];
+            let body = content.toString();
+            let jsonResponse = JSON.parse(body)['login'];
             loginCookie = jsonResponse['cookieprefix'] + '_session=' + jsonResponse['sessionid'];
 
             if (jsonResponse['result'] == 'SUCCESS') {
@@ -566,14 +565,14 @@ function login( finished ) {
 }
 
 function checkResume( finished ) {
-    for (var i = 0; i < dumps.length; i++) {
-        var dump = dumps[i];
+    for (let i = 0; i < dumps.length; i++) {
+        let dump = dumps[i];
         nopic = dump.toString().search('nopic') >= 0;
         nozim = dump.toString().search('nozim') >= 0;
         htmlRootPath = computeHtmlRootPath();
 
         if (resume && !nozim) {
-            var zimPath = computeZimRootPath();
+            let zimPath = computeZimRootPath();
             if (fs.existsSync(zimPath)) {
                 printLog(zimPath + ' is already done, skip dumping & ZIM file generation');
                 dumps.splice(i, 1);
@@ -625,10 +624,10 @@ function createDirectories( finished ) {
 }
 
 function randomString( len ) {
-    var randomString = '';
-    var charSet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    for (var i = 0; i < len; i++) {
-        var randomPoz = Math.floor(Math.random() * charSet.length);
+    let randomString = '';
+    let charSet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < len; i++) {
+        let randomPoz = Math.floor(Math.random() * charSet.length);
         randomString += charSet.substring(randomPoz, randomPoz + 1);
     }
     return randomString;
@@ -636,7 +635,7 @@ function randomString( len ) {
 
 function extractTargetIdFromHref( href ) {
     try {
-        var pathname = urlParser.parse(href, false, true).pathname || '';
+        let pathname = urlParser.parse(href, false, true).pathname || '';
         if (pathname.indexOf('./') == 0) {
             return myDecodeURIComponent(pathname.substr(2));
         } else if (pathname.indexOf(webUrlPath) == 0) {
@@ -649,15 +648,15 @@ function extractTargetIdFromHref( href ) {
 }
 
 function computeFilenameRadical( withoutSelection, withoutPictureStatus, withoutDate ) {
-    var radical;
+    let radical;
 
     if (filenamePrefix) {
         radical = filenamePrefix;
     } else {
         radical = creator.charAt(0).toLowerCase() + creator.substr(1) + '_';
-        var hostParts = urlParser.parse(webUrl).hostname.split('.');
-        var langSuffix = langIso2;
-        for (var i = 0; i < hostParts.length; i++) {
+        let hostParts = urlParser.parse(webUrl).hostname.split('.');
+        let langSuffix = langIso2;
+        for (let i = 0; i < hostParts.length; i++) {
             if (hostParts[i] === langIso3) {
                 langSuffix = hostParts[i];
                 break;
@@ -686,7 +685,7 @@ function computeFilenameRadical( withoutSelection, withoutPictureStatus, without
 }
 
 function computeHtmlRootPath() {
-    var htmlRootPath;
+    let htmlRootPath;
 
     if (nozim) {
         htmlRootPath = outputDirectory[0] === '/' ? outputDirectory : pathParser.resolve(process.cwd(), tmpDirectory) + '/';
@@ -699,7 +698,7 @@ function computeHtmlRootPath() {
 }
 
 function computeZimRootPath() {
-    var zimRootPath = outputDirectory[0] === '/' ? outputDirectory : pathParser.resolve(process.cwd(), outputDirectory) + '/';
+    let zimRootPath = outputDirectory[0] === '/' ? outputDirectory : pathParser.resolve(process.cwd(), outputDirectory) + '/';
     zimRootPath += computeFilenameRadical() + '.zim';
     return zimRootPath;
 }
@@ -715,8 +714,8 @@ function computeRedirectsCacheFilePath() {
 function buildZIM( finished ) {
     if (!nozim) {
         exec('sync', function (error) {
-            var zimPath = computeZimRootPath();
-            var cmd = 'zimwriterfs --welcome=index.htm --favicon=favicon.png --language=' + langIso3
+            let zimPath = computeZimRootPath();
+            let cmd = 'zimwriterfs --welcome=index.htm --favicon=favicon.png --language=' + langIso3
                 + ( mainPageId ? '--welcome=' + getArticleBase(mainPageId) : '--welcome=index.htm' )
                 + ( deflateTmpHtml ? ' --inflateHtml ' : '' )
                 + ( verbose ? ' --verbose ' : '' )
@@ -785,7 +784,7 @@ function drainDownloadFileQueue( finished ) {
             return !downloadFileQueue.idle()
         },
         function (error) {
-            var drainBackup = downloadFileQueue.drain;
+            let drainBackup = downloadFileQueue.drain;
             downloadFileQueue.drain = function (error) {
                 if (error) {
                     console.error('Error by downloading images' + error);
@@ -815,7 +814,7 @@ function drainOptimizationQueue( finished ) {
             return !optimizationQueue.idle()
         },
         function (error) {
-            var drainBackup = optimizationQueue.drain;
+            let drainBackup = optimizationQueue.drain;
             optimizationQueue.drain = function (error) {
                 if (error) {
                     console.error('Error by optimizing images' + error);
@@ -834,7 +833,7 @@ function drainOptimizationQueue( finished ) {
 
 function cacheRedirects( finished ) {
     printLog('Reset redirects cache file (or create it)');
-    fs.openSync(redirectsCacheFile, 'w')
+    fs.openSync(redirectsCacheFile, 'w');
 
     printLog('Caching redirects...');
     function cacheRedirect(redirectId, finished) {
@@ -845,7 +844,7 @@ function cacheRedirects( finished ) {
             } else {
                 if (target) {
                     printLog('Caching redirect ' + redirectId + ' (to ' + target + ')...');
-                    var line = 'A\t' + getArticleBase(redirectId) + '\t' + redirectId.replace(/_/g, ' ') +
+                    let line = 'A\t' + getArticleBase(redirectId) + '\t' + redirectId.replace(/_/g, ' ') +
                         '\t' + getArticleBase(target, false) + '\n';
                     fs.appendFile(redirectsCacheFile, line, finished);
                 } else {
@@ -884,7 +883,7 @@ function saveHtmlRedirects( finished ) {
             } else {
                 if (target) {
                     printLog('Writing HTML redirect ' + redirectId + ' (to ' + target + ')...');
-                    var data = redirectTemplateCode.replace("{{ title }}", redirectId.replace(/_/g, ' ')).replace("{{ target }}", getArticleUrl(target));
+                    let data = redirectTemplateCode.replace("{{ title }}", redirectId.replace(/_/g, ' ')).replace("{{ target }}", getArticleUrl(target));
                     if (deflateTmpHtml) {
                         zlib.deflate(data, function (error, deflatedHtml) {
                             fs.writeFile(getArticlePath(redirectId), deflatedHtml, finished);
@@ -940,9 +939,9 @@ function saveArticles( finished ) {
             return;
         }
         if (json['image']) {
-            for (var url in json['image']['urls']) {
-                var src = getFullUrl(json['image']['urls'][url]);
-                var newSrc = getMediaUrl(src);
+            for (let url in json['image']['urls']) {
+                let src = getFullUrl(json['image']['urls'][url]);
+                let newSrc = getMediaUrl(src);
                 if (newSrc) {
                     downloadFileQueue.push(src);
                     json['image']['urls'][url] = newSrc;
@@ -950,8 +949,8 @@ function saveArticles( finished ) {
             }
         }
         if (json['pronunciation']) {
-            var src = getFullUrl(json['pronunciation']['url']);
-            var newSrc = getMediaUrl(src);
+            let src = getFullUrl(json['pronunciation']['url']);
+            let newSrc = getMediaUrl(src);
             if (newSrc) {
                 downloadFileQueue.push(src);
                 json['pronunciation']['url'] = newSrc;
@@ -969,12 +968,12 @@ function saveArticles( finished ) {
 
     function treatMediaElementsForSection(dom) {
         /* Clean/rewrite image tags */
-        var imgs = dom.getElementsByTagName('img');
-        var imgSrcCache = {};
+        const imgs = dom.getElementsByTagName('img');
+        let imgSrcCache = {};
 
-        for (var i = 0; i < imgs.length; i++) {
-            var img = imgs[i];
-            var imageNodeClass = img.getAttribute('class') || '';
+        for (let i = 0; i < imgs.length; i++) {
+            let img = imgs[i];
+            let imageNodeClass = img.getAttribute('class') || '';
 
             if ((!nopic ||
                     imageNodeClass.search('mwe-math-fallback-image-inline') >= 0 ||
@@ -985,13 +984,13 @@ function saveArticles( finished ) {
             ) {
 
                 /* Remove image link */
-                var linkNode = img.parentNode;
+                let linkNode = img.parentNode;
                 if (linkNode.tagName === 'A') {
 
                     /* Check if the target is mirrored */
-                    var href = linkNode.getAttribute('href') || '';
-                    var targetId = extractTargetIdFromHref(href);
-                    var keepLink = targetId && isMirrored(targetId);
+                    let href = linkNode.getAttribute('href') || '';
+                    let targetId = extractTargetIdFromHref(href);
+                    let keepLink = targetId && isMirrored(targetId);
 
                     /* Under certain condition it seems that this is possible
                      * to have parentNode == undefined, in this case this
@@ -1009,8 +1008,8 @@ function saveArticles( finished ) {
 
                 /* Rewrite image src attribute */
                 if (img) {
-                    var src = getFullUrl(img.getAttribute('src'));
-                    var newSrc = getMediaUrl(src);
+                    let src = getFullUrl(img.getAttribute('src'));
+                    let newSrc = getMediaUrl(src);
 
                     if (newSrc) {
 
@@ -1038,25 +1037,25 @@ function saveArticles( finished ) {
         }
 
         /* Improve image frames */
-        var figures = dom.getElementsByTagName('figure');
-        var spans = dom.querySelectorAll("span[typeof=mw:Image/Frameless]");
-        var imageNodes = Array.prototype.slice.call(figures).concat(Array.prototype.slice.call(spans));
-        for (var i = 0; i < imageNodes.length; i++) {
-            var imageNode = imageNodes[i];
-            var images = imageNode.getElementsByTagName('img');
-            var image = images.length > 0 ? images[0] : undefined;
-            var isStillLinked = image && image.parentNode && image.parentNode.tagName === 'A';
+        let figures = dom.getElementsByTagName('figure');
+        let spans = dom.querySelectorAll("span[typeof=mw:Image/Frameless]");
+        let imageNodes = Array.prototype.slice.call(figures).concat(Array.prototype.slice.call(spans));
+        for (let i = 0; i < imageNodes.length; i++) {
+            let imageNode = imageNodes[i];
+            let images = imageNode.getElementsByTagName('img');
+            let image = images.length > 0 ? images[0] : undefined;
+            let isStillLinked = image && image.parentNode && image.parentNode.tagName === 'A';
 
             if (!nopic && imageNode && image) {
-                var imageNodeClass = imageNode.getAttribute('class') || '';
-                var imageNodeTypeof = imageNode.getAttribute('typeof') || '';
+                let imageNodeClass = imageNode.getAttribute('class') || '';
+                let imageNodeTypeof = imageNode.getAttribute('typeof') || '';
 
                 if (imageNodeTypeof.indexOf('mw:Image/Thumb') >= 0) {
-                    var descriptions = imageNode.getElementsByTagName('figcaption')
-                    var description = descriptions.length > 0 ? descriptions[0] : undefined;
-                    var imageWidth = parseInt(image.getAttribute('width'));
+                    let descriptions = imageNode.getElementsByTagName('figcaption')
+                    let description = descriptions.length > 0 ? descriptions[0] : undefined;
+                    let imageWidth = parseInt(image.getAttribute('width'));
 
-                    var thumbDiv = dom.createElement('div');
+                    let thumbDiv = dom.createElement('div');
                     thumbDiv.setAttribute('class', 'thumb');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tright'));
@@ -1064,18 +1063,18 @@ function saveArticles( finished ) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tleft'));
                     } else if (imageNodeClass.search('mw-halign-center') >= 0) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tnone'));
-                        var centerDiv = dom.createElement('center');
+                        let centerDiv = dom.createElement('center');
                         centerDiv.appendChild(thumbDiv);
                         thumbDiv = centerDiv;
                     } else {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 't' + revAutoAlign));
                     }
 
-                    var thumbinnerDiv = dom.createElement('div');
+                    let thumbinnerDiv = dom.createElement('div');
                     thumbinnerDiv.setAttribute('class', 'thumbinner');
                     thumbinnerDiv.setAttribute('style', 'width:' + ( imageWidth + 2) + 'px');
 
-                    var thumbcaptionDiv = dom.createElement('div');
+                    let thumbcaptionDiv = dom.createElement('div');
                     thumbcaptionDiv.setAttribute('class', 'thumbcaption');
                     thumbcaptionDiv.setAttribute('style', 'text-align: ' + autoAlign);
                     if (description) {
@@ -1088,7 +1087,7 @@ function saveArticles( finished ) {
 
                     imageNode.parentNode.replaceChild(thumbDiv, imageNode);
                 } else if (imageNodeTypeof.indexOf('mw:Image') >= 0) {
-                    var div = dom.createElement('div');
+                    let div = dom.createElement('div');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
                         div.setAttribute('class', concatenateToAttribute(div.getAttribute('class'), 'floatright'));
                     } else if (imageNodeClass.search('mw-halign-left') >= 0) {
@@ -1108,140 +1107,106 @@ function saveArticles( finished ) {
     function rewriteUrls(dom) {
 
         function rewriteUrl(linkNode) {
-            var rel = linkNode.getAttribute('rel');
-            var href = linkNode.getAttribute('href') || '';
+            let rel = linkNode.getAttribute('rel');
+            let href = linkNode.getAttribute('href') || '';
 
             if (!href) {
                 deleteNode(linkNode);
                 return;
-            } else {
+            }
 
-                /* Deal with custom geo. URL replacement, for example:
-                 * http://maps.wikivoyage-ev.org/w/poimap2.php?lat=44.5044943&lon=34.1969633&zoom=15&layer=M&lang=ru&name=%D0%9C%D0%B0%D1%81%D1%81%D0%B0%D0%BD%D0%B4%D1%80%D0%B0
-                 * http://tools.wmflabs.org/geohack/geohack.php?language=fr&pagename=Tour_Eiffel&params=48.85825_N_2.2945_E_type:landmark_region:fr
-                 */
-                if (rel != 'mw:WikiLink') {
-                    var lat, lon;
-                    if (/poimap2\.php/i.test(href)) {
-                        var hrefQuery = urlParser.parse(href, true).query;
-                        lat = parseFloat(hrefQuery.lat);
-                        lon = parseFloat(hrefQuery.lon);
-                    } else if (/geohack\.php/i.test(href)) {
-                        var params = urlParser.parse(href, true).query.params;
+            /* Deal with custom geo. URL replacement, for example:
+             * http://maps.wikivoyage-ev.org/w/poimap2.php?lat=44.5044943&lon=34.1969633&zoom=15&layer=M&lang=ru&name=%D0%9C%D0%B0%D1%81%D1%81%D0%B0%D0%BD%D0%B4%D1%80%D0%B0
+             * http://tools.wmflabs.org/geohack/geohack.php?language=fr&pagename=Tour_Eiffel&params=48.85825_N_2.2945_E_type:landmark_region:fr
+             */
+            if (rel != 'mw:WikiLink') {
+                let lat, lon;
+                if (/poimap2\.php/i.test(href)) {
+                    let hrefQuery = urlParser.parse(href, true).query;
+                    lat = parseFloat(hrefQuery.lat);
+                    lon = parseFloat(hrefQuery.lon);
+                } else if (/geohack\.php/i.test(href)) {
+                    let params = urlParser.parse(href, true).query.params;
 
-                        /* "params" might be an array, try to detect the geo localization one */
-                        if (params instanceof Array) {
-                            var i = 0;
-                            while (params[i] && isNaN(params[i][0])) {
-                                i++
-                            }
-                            params = params[i];
+                    /* "params" might be an array, try to detect the geo localization one */
+                    if (params instanceof Array) {
+                        let i = 0;
+                        while (params[i] && isNaN(params[i][0])) {
+                            i++
                         }
-
-                        if (params) {
-                            // see https://bitbucket.org/magnusmanske/geohack/src public_html geo_param.php
-                            var pieces = params.toUpperCase().split('_');
-                            var semiPieces = pieces.length > 0 ? pieces[0].split(';') : undefined;
-                            if (semiPieces && semiPieces.length == 2) {
-                                lat = semiPieces[0];
-                                lon = semiPieces[1];
-                            } else {
-                                var factors = [1, 60, 3600];
-                                var offs = 0;
-
-                                var deg = function (hemiHash) {
-                                    var out = 0;
-                                    for (var i = 0; i < 4 && (i + offs) < pieces.length; i++) {
-                                        var v = pieces[i + offs];
-                                        var hemiSign = hemiHash[v];
-                                        if (hemiSign) {
-                                            offs = i + 1;
-                                            break;
-                                        }
-                                        out += v / factors[i];
-                                    }
-                                    return out * hemiSign;
-                                };
-
-                                lat = deg({N: 1, S: -1});
-                                lon = deg({E: 1, W: -1, O: 1});
-                            }
-                        }
+                        params = params[i];
                     }
 
-                    if (!isNaN(lat) && !isNaN(lon)) {
-                        href = 'geo:' + lat + ',' + lon;
-                        linkNode.setAttribute('href', href);
+                    if (params) {
+                        // see https://bitbucket.org/magnusmanske/geohack/src public_html geo_param.php
+                        let pieces = params.toUpperCase().split('_');
+                        let semiPieces = pieces.length > 0 ? pieces[0].split(';') : undefined;
+                        if (semiPieces && semiPieces.length == 2) {
+                            lat = semiPieces[0];
+                            lon = semiPieces[1];
+                        } else {
+                            let factors = [1, 60, 3600];
+                            let offs = 0;
+
+                            let deg = function (hemiHash) {
+                                let out = 0;
+                                for (let i = 0; i < 4 && (i + offs) < pieces.length; i++) {
+                                    let v = pieces[i + offs];
+                                    let hemiSign = hemiHash[v];
+                                    if (hemiSign) {
+                                        offs = i + 1;
+                                        break;
+                                    }
+                                    out += v / factors[i];
+                                }
+                                return out * hemiSign;
+                            };
+
+                            lat = deg({N: 1, S: -1});
+                            lon = deg({E: 1, W: -1, O: 1});
+                        }
                     }
                 }
 
-                if (rel) {
-                    /* Add 'external' class to external links */
-                    if (rel.substring(0, 10) === 'mw:ExtLink' ||
-                        rel === 'mw:WikiLink/Interwiki') {
-                        linkNode.setAttribute('class', concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    href = 'geo:' + lat + ',' + lon;
+                    linkNode.setAttribute('href', href);
+                }
+            }
+
+            if (rel) {
+                /* Add 'external' class to external links */
+                if (rel.substring(0, 10) === 'mw:ExtLink' ||
+                    rel === 'mw:WikiLink/Interwiki') {
+                    linkNode.setAttribute('class', concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
+                }
+
+                /* Rewrite external links starting with // */
+                if (rel.substring(0, 10) === 'mw:ExtLink' || rel == 'nofollow') {
+                    if (href.substring(0, 1) === '/') {
+                        linkNode.setAttribute('href', getFullUrl(href));
+                    } else if (href.substring(0, 2) === './') {
+                        while (linkNode.firstChild) {
+                            linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
+                        }
+                        linkNode.parentNode.removeChild(linkNode);
+                    }
+                }
+                /* Remove internal links pointing to no mirrored articles */
+                else if (rel == 'mw:WikiLink') {
+                    let targetId = extractTargetIdFromHref(href);
+
+                    /* Deal with local anchor */
+                    let localAnchor = '';
+                    if (targetId.lastIndexOf("#") != -1) {
+                        localAnchor = targetId.substr(targetId.lastIndexOf('#'));
+                        targetId = targetId.substr(0, targetId.lastIndexOf('#'));
                     }
 
-                    /* Rewrite external links starting with // */
-                    if (rel.substring(0, 10) === 'mw:ExtLink' || rel == 'nofollow') {
-                        if (href.substring(0, 1) === '/') {
-                            linkNode.setAttribute('href', getFullUrl(href));
-                        } else if (href.substring(0, 2) === './') {
-                            while (linkNode.firstChild) {
-                                linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
-                            }
-                            linkNode.parentNode.removeChild(linkNode);
-                        }
-                        return;
-                    }
-
-                    /* Remove internal links pointing to no mirrored articles */
-                    else if (rel == 'mw:WikiLink') {
-                        var targetId = extractTargetIdFromHref(href);
-
-                        /* Deal with local anchor */
-                        var localAnchor = '';
-                        if (targetId.lastIndexOf("#") != -1) {
-                            localAnchor = targetId.substr(targetId.lastIndexOf('#'));
-                            targetId = targetId.substr(0, targetId.lastIndexOf('#'));
-                        }
-
-                        if (isMirrored(targetId)) {
-                            linkNode.setAttribute('href', getArticleUrl(targetId) + localAnchor);
-                            return;
-                        } else {
-                            try {
-                                redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
-                                    if (error) {
-                                        console.error('Unable to check redirect existence with redis: ' + error);
-                                        process.exit(1);
-                                    } else {
-                                        if (res) {
-                                            linkNode.setAttribute('href', getArticleUrl(targetId));
-                                        } else {
-                                            while (linkNode.firstChild) {
-                                                linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
-                                            }
-                                            linkNode.parentNode.removeChild(linkNode);
-                                        }
-                                    }
-                                    return;
-                                });
-                            } catch (error) {
-                                console.error("Exception by requesting redis " + error);
-                                process.exit(1);
-                            }
-                        }
+                    if (isMirrored(targetId)) {
+                        linkNode.setAttribute('href', getArticleUrl(targetId) + localAnchor);
                     } else {
-                        return;
-                    }
-                } else {
-                    var targetId = extractTargetIdFromHref(href);
-                    if (targetId) {
-                        if (isMirrored(targetId)) {
-                            linkNode.setAttribute('href', getArticleUrl(targetId));
-                            return;
-                        } else {
+                        try {
                             redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
                                 if (error) {
                                     console.error('Unable to check redirect existence with redis: ' + error);
@@ -1256,30 +1221,53 @@ function saveArticles( finished ) {
                                         linkNode.parentNode.removeChild(linkNode);
                                     }
                                 }
-                                return;
                             });
+                        } catch (error) {
+                            console.error("Exception by requesting redis " + error);
+                            process.exit(1);
                         }
+                    }
+                }
+            } else {
+                let targetId = extractTargetIdFromHref(href);
+                if (targetId) {
+                    if (isMirrored(targetId)) {
+                        linkNode.setAttribute('href', getArticleUrl(targetId));
                     } else {
-                        return;
+                        redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
+                            if (error) {
+                                console.error('Unable to check redirect existence with redis: ' + error);
+                                process.exit(1);
+                            } else {
+                                if (res) {
+                                    linkNode.setAttribute('href', getArticleUrl(targetId));
+                                } else {
+                                    while (linkNode.firstChild) {
+                                        linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
+                                    }
+                                    linkNode.parentNode.removeChild(linkNode);
+                                }
+                            }
+                        });
                     }
                 }
             }
         }
 
         /* Go through all links */
-        var as = dom.getElementsByTagName('a');
-        var areas = dom.getElementsByTagName('area');
-        var linkNodes = Array.prototype.slice.call(as).concat(Array.prototype.slice.call(areas));
+        let as = dom.getElementsByTagName('a');
+        let areas = dom.getElementsByTagName('area');
+        let linkNodes = Array.prototype.slice.call(as).concat(Array.prototype.slice.call(areas));
 
-        for (var i = 0; i < linkNodes.length; i++) {
+        for (let i = 0; i < linkNodes.length; i++) {
             rewriteUrl(linkNodes[i]);
         }
     }
 
     function applyOtherTreatments(dom) {
         /* Go through gallerybox */
-        var galleryboxes = dom.getElementsByClassName('gallerybox');
-        for (var i = 0; i < galleryboxes.length; i++) {
+        let galleryboxes = dom.getElementsByClassName('gallerybox');
+        for (let i = 0; i < galleryboxes.length; i++) {
             if (( !galleryboxes[i].getElementsByClassName('thumb').length ) || ( nopic )) {
                 deleteNode(galleryboxes[i]);
             }
@@ -1287,19 +1275,19 @@ function saveArticles( finished ) {
 
         /* Remove "map" tags if necessary */
         if (nopic) {
-            var maps = dom.getElementsByTagName('map');
-            for (var i = 0; i < maps.length; i++) {
+            let maps = dom.getElementsByTagName('map');
+            for (let i = 0; i < maps.length; i++) {
                 deleteNode(maps[i]);
             }
         }
 
         /* Go through all reference calls */
-        var spans = dom.getElementsByTagName('span');
-        for (var i = 0; i < spans.length; i++) {
-            var span = spans[i];
-            var rel = span.getAttribute('rel');
+        let spans = dom.getElementsByTagName('span');
+        for (let i = 0; i < spans.length; i++) {
+            let span = spans[i];
+            let rel = span.getAttribute('rel');
             if (rel === 'dc:references') {
-                var sup = dom.createElement('sup');
+                let sup = dom.createElement('sup');
                 if (span.innerHTML) {
                     sup.id = span.id;
                     sup.innerHTML = span.innerHTML;
@@ -1312,7 +1300,7 @@ function saveArticles( finished ) {
 
         /* Remove element with id in the blacklist */
         idBlackList.map(function (id) {
-            var node = dom.getElementById(id);
+            let node = dom.getElementById(id);
             if (node) {
                 deleteNode(node);
             }
@@ -1320,16 +1308,16 @@ function saveArticles( finished ) {
 
         /* Remove element with black listed CSS classes */
         cssClassBlackList.map(function (classname) {
-            var nodes = dom.getElementsByClassName(classname);
-            for (var i = 0; i < nodes.length; i++) {
+            let nodes = dom.getElementsByClassName(classname);
+            for (let i = 0; i < nodes.length; i++) {
                 deleteNode(nodes[i]);
             }
         });
 
         /* Remove element with black listed CSS classes and no link */
         cssClassBlackListIfNoLink.map(function (classname) {
-            var nodes = dom.getElementsByClassName(classname);
-            for (var i = 0; i < nodes.length; i++) {
+            let nodes = dom.getElementsByClassName(classname);
+            for (let i = 0; i < nodes.length; i++) {
                 if (nodes[i].getElementsByTagName('a').length === 0) {
                     deleteNode(nodes[i]);
                 }
@@ -1338,23 +1326,23 @@ function saveArticles( finished ) {
 
         /* Force display of element with that CSS class */
         cssClassDisplayList.map(function (classname) {
-            var nodes = dom.getElementsByClassName(classname);
-            for (var i = 0; i < nodes.length; i++) {
+            let nodes = dom.getElementsByClassName(classname);
+            for (let i = 0; i < nodes.length; i++) {
                 nodes[i].style.removeProperty('display');
             }
         });
 
         /* Remove link tags */
-        var links = dom.getElementsByTagName('link');
-        for (var i = 0; i < links.length; i++) {
+        let links = dom.getElementsByTagName('link');
+        for (let i = 0; i < links.length; i++) {
             deleteNode(links[i]);
         }
 
         /* Remove useless DOM nodes without children */
-        var tagNames = ['li', 'span'];
+        let tagNames = ['li', 'span'];
         tagNames.map(function (tagName) {
-            var nodes = dom.getElementsByTagName(tagName);
-            for (var i = 0; i < nodes.length; i++) {
+            let nodes = dom.getElementsByTagName(tagName);
+            for (let i = 0; i < nodes.length; i++) {
                 if (!nodes[i].innerHTML) {
                     deleteNode(nodes[i]);
                 }
@@ -1362,18 +1350,18 @@ function saveArticles( finished ) {
         });
 
         /* Remove useless input nodes */
-        var inputNodes = dom.getElementsByTagName('input');
-        for (var i = 0; i < inputNodes.length; i++) {
+        let inputNodes = dom.getElementsByTagName('input');
+        for (let i = 0; i < inputNodes.length; i++) {
             deleteNode(inputNodes[i]);
         }
 
         /* Remove empty paragraphs */
         if (!keepEmptyParagraphs) {
-            for (var level = 5; level > 0; level--) {
-                var paragraphNodes = dom.getElementsByTagName('h' + level);
-                for (var i = 0; i < paragraphNodes.length; i++) {
-                    var paragraphNode = paragraphNodes[i];
-                    var nextElementNode = getNextSiblingElement(paragraphNode);
+            for (let level = 5; level > 0; level--) {
+                let paragraphNodes = dom.getElementsByTagName('h' + level);
+                for (let i = 0; i < paragraphNodes.length; i++) {
+                    let paragraphNode = paragraphNodes[i];
+                    let nextElementNode = getNextSiblingElement(paragraphNode);
 
                     /* No nodes */
                     if (!nextElementNode) {
@@ -1381,7 +1369,7 @@ function saveArticles( finished ) {
                     } else {
 
                         /* Delete if nextElementNode is a paragraph with <= level */
-                        var nextElementNodeTag = nextElementNode.tagName.toLowerCase();
+                        let nextElementNodeTag = nextElementNode.tagName.toLowerCase();
                         if (nextElementNodeTag.length > 1 && nextElementNodeTag[0] == 'h' && !isNaN(nextElementNodeTag[1]) && nextElementNodeTag[1] <= level) {
                             deleteNode(paragraphNode);
                         }
@@ -1391,9 +1379,9 @@ function saveArticles( finished ) {
         }
 
         /* Clean the DOM of all uncessary code */
-        var allNodes = dom.getElementsByTagName('*');
-        for (var i = 0; i < allNodes.length; i++) {
-            var node = allNodes[i];
+        let allNodes = dom.getElementsByTagName('*');
+        for (let i = 0; i < allNodes.length; i++) {
+            let node = allNodes[i];
             node.removeAttribute('data-parsoid');
             node.removeAttribute('typeof');
             node.removeAttribute('about');
@@ -1427,9 +1415,9 @@ function saveArticles( finished ) {
     function saveArticle(articleId, finished) {
 
 
-        //var articleUrl = parsoidUrl + encodeURIComponent(articleId) + ( parsoidUrl.indexOf('/rest') < 0 ? (parsoidUrl.indexOf('?') < 0 ? '?' : '&' ) + 'oldid=' : '/' ) + articleIds[articleId];
+        //let articleUrl = parsoidUrl + encodeURIComponent(articleId) + ( parsoidUrl.indexOf('/rest') < 0 ? (parsoidUrl.indexOf('?') < 0 ? '?' : '&' ) + 'oldid=' : '/' ) + articleIds[articleId];
 
-        var articleUrl = "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/" + encodeURIComponent(articleId);
+        let articleUrl = "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/" + encodeURIComponent(articleId);
 
 
         console.log(">>>>>>> " + articleUrl);
@@ -1441,14 +1429,14 @@ function saveArticles( finished ) {
             articleUrl,
             function (content, responseHeaders, articleId) {
 
-                var json = JSON.parse(content.toString());
+                let json = JSON.parse(content.toString());
 
                 if (!json['lead']) {
                     console.error('Error retrieving article: ' + articleId);
                 }
 
                 if (json) {
-                    var articlePath = getArticlePath(articleId);
+                    let articlePath = getArticlePath(articleId);
 
                     printLog('Treating and saving article ' + articleId + ' at ' + articlePath + '...');
 
@@ -1492,7 +1480,7 @@ function saveArticles( finished ) {
 
 function isMirrored( id ) {
     if (!articleList && id && id.indexOf(':') >= 0) {
-        var namespace = namespaces[id.substring(0, id.indexOf(':')).replace(/ /g, '_')];
+        let namespace = namespaces[id.substring(0, id.indexOf(':')).replace(/ /g, '_')];
         if (namespace != undefined) {
             return namespace.isContent
         }
@@ -1502,8 +1490,8 @@ function isMirrored( id ) {
 
 function isSubpage( id ) {
     if (id && id.indexOf('/') >= 0) {
-        var namespace = id.indexOf(':') >= 0 ? id.substring(0, id.indexOf(':')).replace(/ /g, '_') : "";
-        var namespace = namespaces[namespace];
+        let namespace = id.indexOf(':') >= 0 ? id.substring(0, id.indexOf(':')).replace(/ /g, '_') : "";
+        namespace = namespaces[namespace];
         if (namespace != undefined) {
             return namespace.allowedSubpages;
         }
@@ -1512,16 +1500,16 @@ function isSubpage( id ) {
 }
 
 /* Get ids */
-var redirectQueue = async.queue( function( articleId, finished ) {
+let redirectQueue = async.queue( function( articleId, finished ) {
     if (articleId) {
         printLog('Getting redirects for article ' + articleId + '...');
-        var url = apiUrl + 'action=query&list=backlinks&blfilterredir=redirects&bllimit=max&format=json&bltitle=' + encodeURIComponent(articleId) + '&rawcontinue=';
+        let url = apiUrl + 'action=query&list=backlinks&blfilterredir=redirects&bllimit=max&format=json&bltitle=' + encodeURIComponent(articleId) + '&rawcontinue=';
         downloadContent(url, function (content, responseHeaders) {
-            var body = content.toString();
+            let body = content.toString();
             try {
                 if (!JSON.parse(body)['error']) {
-                    var redirects = {};
-                    var redirectsCount = 0;
+                    let redirects = {};
+                    let redirectsCount = 0;
                     JSON.parse(body)['query']['backlinks'].map(function (entry) {
                         redirects[entry['title'].replace(/ /g, '_')] = articleId;
                         redirectsCount++;
@@ -1568,15 +1556,15 @@ function getArticleIds( finished ) {
 
     /* Parse article list given by API */
     function parseJson(body) {
-        var next = '';
-        var json = JSON.parse(body);
-        var entries = json['query'] && json['query']['pages'];
+        let next = '';
+        let json = JSON.parse(body);
+        let entries = json['query'] && json['query']['pages'];
 
         if (entries) {
-            var redirectQueueValues = [];
-            var details = {};
+            let redirectQueueValues = [];
+            let details = {};
             Object.keys(entries).map(function (key) {
-                var entry = entries[key];
+                let entry = entries[key];
                 entry['title'] = entry['title'].replace(/ /g, '_');
 
                 if ('missing' in entry) {
@@ -1591,7 +1579,7 @@ function getArticleIds( finished ) {
                         articleIds[entry['title']] = entry['revisions'][0]['revid'];
 
                         /* Get last revision id timestamp */
-                        var articleDetails = {'t': parseInt(new Date(entry['revisions'][0]['timestamp']).getTime() / 1000)};
+                        let articleDetails = {'t': parseInt(new Date(entry['revisions'][0]['timestamp']).getTime() / 1000)};
 
                         /* Get article geo coordinates */
                         if (entry['coordinates']) {
@@ -1625,9 +1613,9 @@ function getArticleIds( finished ) {
             /* Get continue parameters from 'query-continue',
              * unfortunately old MW version does not use the same way
              * than recent */
-            var continueHash = json['query-continue'] && json['query-continue']['allpages'];
+            let continueHash = json['query-continue'] && json['query-continue']['allpages'];
             if (continueHash) {
-                for (var key in continueHash) {
+                for (let key in continueHash) {
                     next += '&' + key + '=' + encodeURIComponent(continueHash[key]);
                 }
             }
@@ -1639,10 +1627,10 @@ function getArticleIds( finished ) {
     /* Get ids from file */
     function getArticleIdsForLine(line, finished) {
         if (line) {
-            var title = line.replace(/ /g, '_').replace('\r', '');
-            var url = apiUrl + 'action=query&redirects&format=json&prop=revisions|coordinates&titles=' + encodeURIComponent(title);
+            let title = line.replace(/ /g, '_').replace('\r', '');
+            let url = apiUrl + 'action=query&redirects&format=json&prop=revisions|coordinates&titles=' + encodeURIComponent(title);
             setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content, responseHeaders) {
-                var body = content.toString();
+                let body = content.toString();
                 if (body && body.length > 1) {
                     parseJson(body);
                 }
@@ -1655,33 +1643,33 @@ function getArticleIds( finished ) {
 
     function getArticleIdsForFile(finished) {
         try {
-            var lines = fs.readFileSync(articleList).toString().split('\n');
+            let lines = fs.readFileSync(articleList).toString().split('\n');
+
+            async.eachLimit(lines, speed, getArticleIdsForLine, function (error) {
+                if (error) {
+                    console.error('Unable to get all article ids for a file: ' + error);
+                    process.exit(1);
+                } else {
+                    printLog('List of article ids to mirror completed');
+                    drainRedirectQueue(finished);
+                }
+            });
         } catch (error) {
             console.error('Unable to open article list file: ' + error);
             process.exit(1);
         }
-
-        async.eachLimit(lines, speed, getArticleIdsForLine, function (error) {
-            if (error) {
-                console.error('Unable to get all article ids for a file: ' + error);
-                process.exit(1);
-            } else {
-                printLog('List of article ids to mirror completed');
-                drainRedirectQueue(finished);
-            }
-        });
     }
 
     /* Get ids from Mediawiki API */
     function getArticleIdsForNamespace(namespace, finished) {
-        var next = '';
+        let next = '';
 
         async.doWhilst(
             function (finished) {
                 printLog('Getting article ids for namespace "' + namespace + '" ' + ( next != '' ? ' (from ' + ( namespace ? namespace + ':' : '') + next.split('=')[1] + ')' : '' ) + '...');
-                var url = apiUrl + 'action=query&generator=allpages&gapfilterredir=nonredirects&gaplimit=max&colimit=max&prop=revisions|coordinates&gapnamespace=' + namespaces[namespace].number + '&format=json' + '&rawcontinue=' + next;
+                let url = apiUrl + 'action=query&generator=allpages&gapfilterredir=nonredirects&gaplimit=max&colimit=max&prop=revisions|coordinates&gapnamespace=' + namespaces[namespace].number + '&format=json' + '&rawcontinue=' + next;
                 setTimeout(downloadContent, redirectQueue.length() > 30000 ? redirectQueue.length() - 30000 : 0, url, function (content, responseHeaders) {
-                    var body = content.toString();
+                    let body = content.toString();
                     if (body && body.length > 1) {
                         next = parseJson(body);
                         finished();
@@ -1787,11 +1775,11 @@ function createSubDirectories( finished ) {
 
 /* Multiple developer friendly functions */
 function getFullUrl( url, baseUrl ) {
-    var urlObject = urlParser.parse(url, false, true);
+    let urlObject = urlParser.parse(url, false, true);
 
     if (!urlObject.protocol) {
 
-        var baseUrlObject = baseUrl ? urlParser.parse(baseUrl, false, true) : {};
+        let baseUrlObject = baseUrl ? urlParser.parse(baseUrl, false, true) : {};
         urlObject.protocol = urlObject.protocol || baseUrlObject.protocol || 'http:';
         urlObject.host = urlObject.host || baseUrlObject.host || webUrlHost;
 
@@ -1820,8 +1808,8 @@ function concatenateToAttribute( old, add ) {
 }
 
 function downloadContentAndCache( url, callback, var1, var2, var3 ) {
-    var cachePath = cacheDirectory + crypto.createHash('sha1').update(url).digest('hex').substr(0, 20);
-    var cacheHeadersPath = cachePath + '.h';
+    let cachePath = cacheDirectory + crypto.createHash('sha1').update(url).digest('hex').substr(0, 20);
+    let cacheHeadersPath = cachePath + '.h';
 
     async.series(
         [
@@ -1860,9 +1848,9 @@ function downloadContentAndCache( url, callback, var1, var2, var3 ) {
 }
 
 function getRequestOptionsFromUrl( url, compression ) {
-    var urlObj = urlParser.parse(url);
-    var port = urlObj.port ? urlObj.port : ( urlObj.protocol && urlObj.protocol.substring(0, 5) == 'https' ? 443 : 80 );
-    var headers = {
+    let urlObj = urlParser.parse(url);
+    let port = urlObj.port ? urlObj.port : ( urlObj.protocol && urlObj.protocol.substring(0, 5) == 'https' ? 443 : 80 );
+    let headers = {
         'accept': 'text/html; charset=utf-8; profile="mediawiki.org/specs/html/1.2.0"',
         'accept-encoding': ( compression ? 'gzip, deflate' : '' ),
         'cache-control': 'public, max-stale=2678400',
@@ -1881,15 +1869,15 @@ function getRequestOptionsFromUrl( url, compression ) {
 }
 
 function downloadContent( url, callback, var1, var2, var3 ) {
-    var retryCount = 0;
-    var responseHeaders = {};
+    let retryCount = 0;
+    let responseHeaders = {};
 
     printLog('Downloading ' + decodeURI(url) + '...');
     async.retry(
         3,
         function (finished) {
-            var request;
-            var calledFinished = false;
+            let request;
+            let calledFinished = false;
 
             function callFinished(timeout, message, data) {
                 if (!calledFinished) {
@@ -1906,10 +1894,10 @@ function downloadContent( url, callback, var1, var2, var3 ) {
             retryCount++;
 
             /* Analyse url */
-            var options = getRequestOptionsFromUrl(url, true);
+            let options = getRequestOptionsFromUrl(url, true);
 
             /* Protocol detection */
-            var protocol;
+            let protocol;
             if (options.protocol == 'http:') {
                 protocol = http;
             } else if (options.protocol == 'https:') {
@@ -1930,13 +1918,13 @@ function downloadContent( url, callback, var1, var2, var3 ) {
             options = getRequestOptionsFromUrl(url, true);
             request = ( protocol ).get(options, function (response) {
                 if (response.statusCode == 200) {
-                    var chunks = [];
+                    let chunks = [];
                     response.on('data', function (chunk) {
                         chunks.push(chunk);
                     });
                     response.on('end', function () {
                         responseHeaders = response.headers;
-                        var encoding = responseHeaders['content-encoding'];
+                        let encoding = responseHeaders['content-encoding'];
                         if (encoding == 'gzip') {
                             zlib.gunzip(Buffer.concat(chunks), function (error, decoded) {
                                 callFinished(0, error, decoded && decoded.toString());
@@ -2003,9 +1991,9 @@ function downloadContent( url, callback, var1, var2, var3 ) {
 }
 
 function downloadFileAndCache( url, callback ) {
-    var parts = mediaRegex.exec(decodeURI(url));
-    var filenameBase = ( parts[2].length > parts[5].length ? parts[2] : parts[5] + (parts[6] || ".svg") + ( parts[7] || '' ) );
-    var width = parseInt(parts[4].replace(/px\-/g, '')) || INFINITY_WIDTH;
+    let parts = mediaRegex.exec(decodeURI(url));
+    let filenameBase = ( parts[2].length > parts[5].length ? parts[2] : parts[5] + (parts[6] || ".svg") + ( parts[7] || '' ) );
+    let width = parseInt(parts[4].replace(/px\-/g, '')) || INFINITY_WIDTH;
 
     /* Check if we have already met this image during this dumping process */
     redisClient.hget(redisMediaIdsDatabase, filenameBase, function (error, r_width) {
@@ -2019,15 +2007,15 @@ function downloadFileAndCache( url, callback ) {
                     console.error('Unable to set redis entry for file to download ' + filenameBase + ': ' + error);
                     process.exit(1);
                 } else {
-                    var mediaPath = getMediaPath(url);
-                    var cachePath = cacheDirectory + 'm/' + crypto.createHash('sha1').update(filenameBase).digest('hex').substr(0, 20) +
+                    let mediaPath = getMediaPath(url);
+                    let cachePath = cacheDirectory + 'm/' + crypto.createHash('sha1').update(filenameBase).digest('hex').substr(0, 20) +
                         ( pathParser.extname(urlParser.parse(url, false, true).pathname || '') || '' );
-                    var cacheHeadersPath = cachePath + '.h';
-                    var toDownload = false;
+                    let cacheHeadersPath = cachePath + '.h';
+                    let toDownload = false;
 
                     /* Check if the file exists in the cache */
                     if (fs.existsSync(cacheHeadersPath) && fs.existsSync(cachePath)) {
-                        var responseHeaders;
+                        let responseHeaders;
                         try {
                             responseHeaders = JSON.parse(fs.readFileSync(cacheHeadersPath).toString());
                         } catch (error) {
@@ -2138,14 +2126,14 @@ function getMediaUrl( url ) {
 }
 
 function getMediaPath( url, escape ) {
-    var mediaBase = getMediaBase(url, escape);
+    let mediaBase = getMediaBase(url, escape);
     return mediaBase ? htmlRootPath + mediaBase : undefined;
 }
 
 function getMediaBase( url, escape ) {
-    var root;
+    let root;
 
-    var parts = mediaRegex.exec(decodeURI(url));
+    let parts = mediaRegex.exec(decodeURI(url));
     if (parts) {
         root = parts[2].length > parts[5].length ? parts[2] : parts[5] + (parts[6] || ".svg") + ( parts[7] || '' );
     }
@@ -2160,15 +2148,15 @@ function getMediaBase( url, escape ) {
             escape ? encodeURIComponent(string) : string );
     }
 
-    var filenameFirstVariant = parts[2];
-    var filenameSecondVariant = parts[5] + (parts[6] || ".svg") + ( parts[7] || '' );
-    var filename = myDecodeURIComponent(filenameFirstVariant.length > filenameSecondVariant.length ?
+    let filenameFirstVariant = parts[2];
+    let filenameSecondVariant = parts[5] + (parts[6] || ".svg") + ( parts[7] || '' );
+    let filename = myDecodeURIComponent(filenameFirstVariant.length > filenameSecondVariant.length ?
         filenameFirstVariant : filenameSecondVariant);
 
     /* Need to shorten the file due to filesystem limitations */
     if (unicodeCutter.getBinarySize(filename) > 249) {
-        var ext = pathParser.extname(filename).split('.')[1] || '';
-        var basename = filename.substring(0, filename.length - ext.length - 1) || '';
+        let ext = pathParser.extname(filename).split('.')[1] || '';
+        let basename = filename.substring(0, filename.length - ext.length - 1) || '';
         filename = unicodeCutter.truncateToBinarySize(basename, 239 - ext.length) + crypto.createHash('md5').update(basename).digest('hex').substring(0, 2) + '.' + ext;
     }
 
@@ -2184,8 +2172,8 @@ function getArticlePath( articleId, escape ) {
 }
 
 function getArticleBase( articleId, escape ) {
-    var filename = articleId.replace(/\//g, '_');
-    var dirBase = filename.replace(/\./g, '_');
+    let filename = articleId.replace(/\//g, '_');
+    let dirBase = filename.replace(/\./g, '_');
 
     /* Filesystem is not able to handle with filename > 255 bytes */
     while (Buffer.byteLength(filename, 'utf8') > 250) {
@@ -2203,9 +2191,9 @@ function getArticleBase( articleId, escape ) {
 function getSubTitle( finished ) {
     printLog('Getting sub-title...');
     downloadContent(webUrl, function (content, responseHeaders) {
-        var html = content.toString();
-        var doc = domino.createDocument(html);
-        var subTitleNode = doc.getElementById('siteSub');
+        let html = content.toString();
+        let doc = domino.createDocument(html);
+        let subTitleNode = doc.getElementById('siteSub');
         subTitle = subTitleNode ? subTitleNode.innerHTML : '';
         finished();
     });
@@ -2213,10 +2201,10 @@ function getSubTitle( finished ) {
 
 function getSiteInfo( finished ) {
     printLog('Getting web site name...');
-    var url = apiUrl + 'action=query&meta=siteinfo&format=json&siprop=general|namespaces|statistics|variables|category|wikidesc';
+    let url = apiUrl + 'action=query&meta=siteinfo&format=json&siprop=general|namespaces|statistics|variables|category|wikidesc';
     downloadContent(url, function (content, responseHeaders) {
-        var body = content.toString();
-        var entries = JSON.parse(body)['query']['general'];
+        let body = content.toString();
+        let entries = JSON.parse(body)['query']['general'];
 
         /* Welcome page */
         if (!mainPageId && !articleList) {
@@ -2243,10 +2231,10 @@ function getSiteInfo( finished ) {
 
 function saveFavicon( finished ) {
     printLog('Saving favicon.png...');
-    var faviconPath = htmlRootPath + 'favicon.png';
+    let faviconPath = htmlRootPath + 'favicon.png';
 
     function resizeFavicon(finished) {
-        var cmd = 'convert -thumbnail 48 "' + faviconPath + '" "' + faviconPath + '.tmp" ; mv  "' + faviconPath + '.tmp" "' + faviconPath + '" ';
+        let cmd = 'convert -thumbnail 48 "' + faviconPath + '" "' + faviconPath + '.tmp" ; mv  "' + faviconPath + '.tmp" "' + faviconPath + '" ';
         exec(cmd, function (error, stdout, stderr) {
             fs.stat(faviconPath, function (error, stats) {
                 optimizationQueue.push({path: faviconPath, size: stats.size}, function () {
@@ -2259,14 +2247,14 @@ function saveFavicon( finished ) {
     }
 
     if (customZimFavicon) {
-        var content = fs.readFileSync(customZimFavicon);
+        let content = fs.readFileSync(customZimFavicon);
         fs.writeFileSync(faviconPath, content);
         resizeFavicon(finished);
     } else {
         downloadContent(apiUrl + 'action=query&meta=siteinfo&format=json', function (content, responseHeaders) {
-            var body = content.toString();
-            var entries = JSON.parse(body)['query']['general'];
-            var logoUrl = entries['logo'];
+            let body = content.toString();
+            let entries = JSON.parse(body)['query']['general'];
+            let logoUrl = entries['logo'];
             logoUrl = urlParser.parse(logoUrl).protocol ? logoUrl : 'http:' + logoUrl;
             downloadFile(logoUrl, faviconPath, true, function () {
                 resizeFavicon(finished);
@@ -2278,7 +2266,7 @@ function saveFavicon( finished ) {
 function getMainPage( finished ) {
 
     function writeMainPage(html, finished) {
-        var mainPagePath = htmlRootPath + 'index.htm';
+        let mainPagePath = htmlRootPath + 'index.htm';
         if (deflateTmpHtml) {
             zlib.deflate(html, function (error, deflatedHtml) {
                 fs.writeFile(mainPagePath, deflatedHtml, finished);
@@ -2290,11 +2278,11 @@ function getMainPage( finished ) {
 
     function createMainPage(finished) {
         printLog('Creating main page...');
-        var doc = domino.createDocument(htmlTemplateCode);
+        let doc = domino.createDocument(htmlTemplateCode);
         doc.getElementById('titleHeading').innerHTML = 'Summary';
         doc.getElementsByTagName('title')[0].innerHTML = 'Summary';
 
-        var html = '<ul>\n';
+        let html = '<ul>\n';
         Object.keys(articleIds).sort().map(function (articleId) {
             html = html + '<li><a href="' + getArticleBase(articleId, true) + '"\>' + articleId.replace(/_/g, ' ') + '<a></li>\n';
         });
@@ -2307,7 +2295,7 @@ function getMainPage( finished ) {
 
     function createMainPageRedirect(finished) {
         printLog('Create main page redirection...');
-        var html = redirectTemplate({
+        let html = redirectTemplate({
             title: mainPageId.replace(/_/g, ' '),
             target: getArticleBase(mainPageId, true)
         });
@@ -2322,20 +2310,20 @@ function getMainPage( finished ) {
 }
 
 function getNamespaces( finished ) {
-    var url = apiUrl + 'action=query&meta=siteinfo&siprop=namespaces|namespacealiases&format=json';
+    let url = apiUrl + 'action=query&meta=siteinfo&siprop=namespaces|namespacealiases&format=json';
     downloadContent(url, function (content, responseHeaders) {
-        var body = content.toString();
-        var types = ['namespaces', 'namespacealiases'];
+        let body = content.toString();
+        let types = ['namespaces', 'namespacealiases'];
         types.map(function (type) {
-            var entries = JSON.parse(body)['query'][type];
+            let entries = JSON.parse(body)['query'][type];
             Object.keys(entries).map(function (key) {
-                var entry = entries[key];
-                var name = entry['*'].replace(/ /g, '_');
-                var number = entry['id'];
-                var allowedSubpages = ( 'subpages' in entry );
-                var isContent = entry['content'] != undefined ? true : false;
-                var canonical = entry['canonical'] ? entry['canonical'].replace(/ /g, '_') : '';
-                var details = {'number': number, 'allowedSubpages': allowedSubpages, 'isContent': isContent};
+                let entry = entries[key];
+                let name = entry['*'].replace(/ /g, '_');
+                let number = entry['id'];
+                let allowedSubpages = ( 'subpages' in entry );
+                let isContent = entry['content'] != undefined;
+                let canonical = entry['canonical'] ? entry['canonical'].replace(/ /g, '_') : '';
+                let details = {'number': number, 'allowedSubpages': allowedSubpages, 'isContent': isContent};
 
                 /* Namespaces in local language */
                 namespaces[lcFirst(name)] = details;
@@ -2362,15 +2350,15 @@ function getTextDirection( finished ) {
     printLog('Getting text direction...');
 
     downloadContent(webUrl, function (content, responseHeaders) {
-        var body = content.toString();
-        var doc = domino.createDocument(body);
-        var contentNode = doc.getElementById('mw-content-text');
-        var languageDirectionRegex = /\"pageLanguageDir\"\:\"(.*?)\"/;
-        var parts = languageDirectionRegex.exec(body);
+        let body = content.toString();
+        let doc = domino.createDocument(body);
+        let contentNode = doc.getElementById('mw-content-text');
+        let languageDirectionRegex = /\"pageLanguageDir\"\:\"(.*?)\"/;
+        let parts = languageDirectionRegex.exec(body);
         if (parts && parts[1]) {
             ltr = ( parts[1] === 'ltr' );
         } else if (contentNode) {
-            ltr = ( contentNode.getAttribute('dir') == 'ltr' ? true : false );
+            ltr = ( contentNode.getAttribute('dir') == 'ltr' );
         } else {
             printLog('Unable to get the language direction, fallback to ltr');
             ltr = true;
@@ -2387,13 +2375,13 @@ function getTextDirection( finished ) {
 
 function lcFirst( str ) {
     str += '';
-    var f = str.charAt(0).toLowerCase();
+    let f = str.charAt(0).toLowerCase();
     return f + str.substr(1);
 }
 
 function ucFirst( str ) {
     str += '';
-    var f = str.charAt(0).toUpperCase();
+    let f = str.charAt(0).toUpperCase();
     return f + str.substr(1);
 }
 
@@ -2407,13 +2395,13 @@ function myDecodeURIComponent( uri ) {
 }
 
 function charAt( str, idx ) {
-    var ret = '';
+    let ret = '';
     str += '';
-    var end = str.length;
+    let end = str.length;
 
-    var surrogatePairs = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+    let surrogatePairs = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
     while (( surrogatePairs.exec(str) ) != null) {
-        var li = surrogatePairs.lastIndex;
+        let li = surrogatePairs.lastIndex;
         if (li - 2 < idx) {
             idx++;
         } else {
@@ -2442,7 +2430,7 @@ function printLog( msg ) {
 
 function executeTransparently( command, args, callback, nostdout, nostderr ) {
     try {
-        var proc = spawn(command, args)
+        let proc = spawn(command, args)
             .on('error', function (error) {
                 console.error('Error in executeTransparently(), ' + error);
                 process.exit(1);
@@ -2477,12 +2465,12 @@ function executeTransparently( command, args, callback, nostdout, nostderr ) {
 }
 
 function validateEmail( email ) {
-    var emailRegex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    let emailRegex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
     return emailRegex.test(email);
 }
 
 function touch( paths ) {
-    var currentDate = Date.now();
+    let currentDate = Date.now();
     paths = paths instanceof Array ? paths : [paths]
     paths.map(function (path) {
         fs.utimes(path, currentDate, currentDate);
@@ -2490,7 +2478,7 @@ function touch( paths ) {
 }
 
 function getNextSiblingElement( node ) {
-    var sibling = node.nextSibling;
+    let sibling = node.nextSibling;
     while (sibling && sibling.nodeType != 1 /* ELEMENT_NODE */) {
         sibling = sibling.nextSibling;
     }
