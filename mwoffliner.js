@@ -270,11 +270,12 @@ var webUrlPath = urlParser.parse( webUrl ).pathname;
 var webUrlPort = getRequestOptionsFromUrl( webUrl ).port;
 var mwApiPath = argv.mwApiPath || 'w/api.php';
 var apiUrl = mwUrl + mwApiPath + '?';
-var parsoidContentType = 'html';
+
+var parsoidContentType = 'json';
 if ( !parsoidUrl ) {
     parsoidUrl = apiUrl + "action=visualeditor&format=json&paction=parse&page=";
-    parsoidContentType = 'json';
 }
+
 var nopic = false;
 var nozim = false;
 var filenameRadical = '';
@@ -356,12 +357,6 @@ async.series(
                     [
                         function (finished) {
                             createSubDirectories(finished)
-                        },
-                        function (finished) {
-                            saveJavascript(finished)
-                        },
-                        function (finished) {
-                            saveStylesheet(finished)
                         },
                         function (finished) {
                             saveFavicon(finished)
@@ -462,7 +457,7 @@ var optimizationQueue = async.queue( function ( file, finished ) {
         if (type === 'jpg' || type === 'jpeg' || type === 'JPG' || type === 'JPEG') {
             return 'jpegoptim --strip-all --force --all-normal -m60 "' + path + '"';
         } else if (type === 'png' || type === 'PNG') {
-            return 'pngquant --verbose --strip --nofs --force --ext="' + tmpExt + '" "' + path +
+            return 'pngquant --verbose --nofs --force --ext="' + tmpExt + '" "' + path +
                 '" && advdef -q -z -4 -i 5 "' + tmpPath +
                 '" && if [ $(stat -c%s "' + tmpPath + '") -lt $(stat -c%s "' + path + '") ]; then mv "' + tmpPath + '" "' + path + '"; else rm "' + tmpPath + '"; fi';
         } else if (type === 'gif' || type === 'GIF') {
@@ -626,7 +621,7 @@ function createDirectories( finished ) {
             },
             function (finished) {
                 mkdirp(tmpDirectory, finished)
-            },
+            }
         ],
         function (error) {
             if (error) {
@@ -934,21 +929,31 @@ function saveHtmlRedirects( finished ) {
     });
 }
 
+
+
+
+
 function saveArticles( finished ) {
 
-    function parseHtml(html, articleId, finished) {
-        try {
-            finished(null, domino.createDocument(html), articleId);
-        } catch (error) {
-            console.error('Crash while parsing ' + articleId);
-            console.error(error.stack);
-            process.exit(1);
+    function transformSections(json) {
+        json['lead']['sections'][0]['text'] = transformSection(domino.createDocument(json['lead']['sections'][0]['text']));
+
+        for (var i = 0; i < json['remaining']['sections'].length; i++) {
+            json['remaining']['sections'][i]['text'] = transformSection(domino.createDocument(json['remaining']['sections'][i]['text']));
         }
     }
 
-    function treatMedias(parsoidDoc, articleId, finished) {
+    function transformSection(dom) {
+        treatMediaElementsForSection(dom);
+        rewriteUrls(dom);
+        applyOtherTreatments(dom);
+
+        return dom.body.innerHTML;
+    }
+
+    function treatMediaElementsForSection(dom) {
         /* Clean/rewrite image tags */
-        var imgs = parsoidDoc.getElementsByTagName('img');
+        var imgs = dom.getElementsByTagName('img');
         var imgSrcCache = new Object();
 
         for (var i = 0; i < imgs.length; i++) {
@@ -1017,8 +1022,8 @@ function saveArticles( finished ) {
         }
 
         /* Improve image frames */
-        var figures = parsoidDoc.getElementsByTagName('figure');
-        var spans = parsoidDoc.querySelectorAll("span[typeof=mw:Image/Frameless]");
+        var figures = dom.getElementsByTagName('figure');
+        var spans = dom.querySelectorAll("span[typeof=mw:Image/Frameless]");
         var imageNodes = Array.prototype.slice.call(figures).concat(Array.prototype.slice.call(spans));
         for (var i = 0; i < imageNodes.length; i++) {
             var imageNode = imageNodes[i];
@@ -1035,7 +1040,7 @@ function saveArticles( finished ) {
                     var description = descriptions.length > 0 ? descriptions[0] : undefined;
                     var imageWidth = parseInt(image.getAttribute('width'));
 
-                    var thumbDiv = parsoidDoc.createElement('div');
+                    var thumbDiv = dom.createElement('div');
                     thumbDiv.setAttribute('class', 'thumb');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tright'));
@@ -1043,18 +1048,18 @@ function saveArticles( finished ) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tleft'));
                     } else if (imageNodeClass.search('mw-halign-center') >= 0) {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 'tnone'));
-                        var centerDiv = parsoidDoc.createElement('center');
+                        var centerDiv = dom.createElement('center');
                         centerDiv.appendChild(thumbDiv);
                         thumbDiv = centerDiv;
                     } else {
                         thumbDiv.setAttribute('class', concatenateToAttribute(thumbDiv.getAttribute('class'), 't' + revAutoAlign));
                     }
 
-                    var thumbinnerDiv = parsoidDoc.createElement('div');
+                    var thumbinnerDiv = dom.createElement('div');
                     thumbinnerDiv.setAttribute('class', 'thumbinner');
                     thumbinnerDiv.setAttribute('style', 'width:' + ( imageWidth + 2) + 'px');
 
-                    var thumbcaptionDiv = parsoidDoc.createElement('div');
+                    var thumbcaptionDiv = dom.createElement('div');
                     thumbcaptionDiv.setAttribute('class', 'thumbcaption');
                     thumbcaptionDiv.setAttribute('style', 'text-align: ' + autoAlign);
                     if (description) {
@@ -1067,7 +1072,7 @@ function saveArticles( finished ) {
 
                     imageNode.parentNode.replaceChild(thumbDiv, imageNode);
                 } else if (imageNodeTypeof.indexOf('mw:Image') >= 0) {
-                    var div = parsoidDoc.createElement('div');
+                    var div = dom.createElement('div');
                     if (imageNodeClass.search('mw-halign-right') >= 0) {
                         div.setAttribute('class', concatenateToAttribute(div.getAttribute('class'), 'floatright'));
                     } else if (imageNodeClass.search('mw-halign-left') >= 0) {
@@ -1082,23 +1087,17 @@ function saveArticles( finished ) {
                 deleteNode(imageNode);
             }
         }
-
-        finished(null, parsoidDoc, articleId);
     }
 
-    function rewriteUrls(parsoidDoc, articleId, finished) {
-        /* Go through all links */
-        var as = parsoidDoc.getElementsByTagName('a');
-        var areas = parsoidDoc.getElementsByTagName('area');
-        var linkNodes = Array.prototype.slice.call(as).concat(Array.prototype.slice.call(areas));
+    function rewriteUrls(dom) {
 
-        function rewriteUrl(linkNode, finished) {
+        function rewriteUrl(linkNode) {
             var rel = linkNode.getAttribute('rel');
             var href = linkNode.getAttribute('href') || '';
 
             if (!href) {
                 deleteNode(linkNode);
-                finished();
+                return;
             } else {
 
                 /* Deal with custom geo. URL replacement, for example:
@@ -1167,13 +1166,6 @@ function saveArticles( finished ) {
                         linkNode.setAttribute('class', concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
                     }
 
-                    /* Check if the link is "valid" */
-                    if (!href) {
-                        console.error('No href attribute in the following code, in article ' + articleId);
-                        console.error(linkNode.outerHTML);
-                        process.exit(1);
-                    }
-
                     /* Rewrite external links starting with // */
                     if (rel.substring(0, 10) === 'mw:ExtLink' || rel == 'nofollow') {
                         if (href.substring(0, 1) === '/') {
@@ -1184,7 +1176,7 @@ function saveArticles( finished ) {
                             }
                             linkNode.parentNode.removeChild(linkNode);
                         }
-                        finished();
+                        return;
                     }
 
                     /* Remove internal links pointing to no mirrored articles */
@@ -1200,7 +1192,7 @@ function saveArticles( finished ) {
 
                         if (isMirrored(targetId)) {
                             linkNode.setAttribute('href', getArticleUrl(targetId) + localAnchor);
-                            finished();
+                            return;
                         } else {
                             try {
                                 redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
@@ -1217,7 +1209,7 @@ function saveArticles( finished ) {
                                             linkNode.parentNode.removeChild(linkNode);
                                         }
                                     }
-                                    finished();
+                                    return;
                                 });
                             } catch (error) {
                                 console.error("Exception by requesting redis " + error);
@@ -1225,14 +1217,14 @@ function saveArticles( finished ) {
                             }
                         }
                     } else {
-                        finished();
+                        return;
                     }
                 } else {
                     var targetId = extractTargetIdFromHref(href);
                     if (targetId) {
                         if (isMirrored(targetId)) {
                             linkNode.setAttribute('href', getArticleUrl(targetId));
-                            finished();
+                            return;
                         } else {
                             redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
                                 if (error) {
@@ -1248,29 +1240,29 @@ function saveArticles( finished ) {
                                         linkNode.parentNode.removeChild(linkNode);
                                     }
                                 }
-                                finished();
+                                return;
                             });
                         }
                     } else {
-                        finished();
+                        return;
                     }
                 }
             }
         }
 
-        async.eachLimit(linkNodes, speed, rewriteUrl, function (error) {
-            if (error) {
-                console.error('Problem by rewriting urls: ' + error);
-                process.exit(1);
-            } else {
-                finished(null, parsoidDoc, articleId);
-            }
-        });
+        /* Go through all links */
+        var as = dom.getElementsByTagName('a');
+        var areas = dom.getElementsByTagName('area');
+        var linkNodes = Array.prototype.slice.call(as).concat(Array.prototype.slice.call(areas));
+
+        for (var i = 0; i < linkNodes.length; i++) {
+            rewriteUrl(linkNodes[i]);
+        }
     }
 
-    function applyOtherTreatments(parsoidDoc, articleId, finished) {
+    function applyOtherTreatments(dom) {
         /* Go through gallerybox */
-        var galleryboxes = parsoidDoc.getElementsByClassName('gallerybox');
+        var galleryboxes = dom.getElementsByClassName('gallerybox');
         for (var i = 0; i < galleryboxes.length; i++) {
             if (( !galleryboxes[i].getElementsByClassName('thumb').length ) || ( nopic )) {
                 deleteNode(galleryboxes[i]);
@@ -1279,19 +1271,19 @@ function saveArticles( finished ) {
 
         /* Remove "map" tags if necessary */
         if (nopic) {
-            var maps = parsoidDoc.getElementsByTagName('map');
+            var maps = dom.getElementsByTagName('map');
             for (var i = 0; i < maps.length; i++) {
                 deleteNode(maps[i]);
             }
         }
 
         /* Go through all reference calls */
-        var spans = parsoidDoc.getElementsByTagName('span');
+        var spans = dom.getElementsByTagName('span');
         for (var i = 0; i < spans.length; i++) {
             var span = spans[i];
             var rel = span.getAttribute('rel');
             if (rel === 'dc:references') {
-                var sup = parsoidDoc.createElement('sup');
+                var sup = dom.createElement('sup');
                 if (span.innerHTML) {
                     sup.id = span.id;
                     sup.innerHTML = span.innerHTML;
@@ -1304,7 +1296,7 @@ function saveArticles( finished ) {
 
         /* Remove element with id in the blacklist */
         idBlackList.map(function (id) {
-            var node = parsoidDoc.getElementById(id);
+            var node = dom.getElementById(id);
             if (node) {
                 deleteNode(node);
             }
@@ -1312,7 +1304,7 @@ function saveArticles( finished ) {
 
         /* Remove element with black listed CSS classes */
         cssClassBlackList.map(function (classname) {
-            var nodes = parsoidDoc.getElementsByClassName(classname);
+            var nodes = dom.getElementsByClassName(classname);
             for (var i = 0; i < nodes.length; i++) {
                 deleteNode(nodes[i]);
             }
@@ -1320,7 +1312,7 @@ function saveArticles( finished ) {
 
         /* Remove element with black listed CSS classes and no link */
         cssClassBlackListIfNoLink.map(function (classname) {
-            var nodes = parsoidDoc.getElementsByClassName(classname);
+            var nodes = dom.getElementsByClassName(classname);
             for (var i = 0; i < nodes.length; i++) {
                 if (nodes[i].getElementsByTagName('a').length === 0) {
                     deleteNode(nodes[i]);
@@ -1330,42 +1322,39 @@ function saveArticles( finished ) {
 
         /* Force display of element with that CSS class */
         cssClassDisplayList.map(function (classname) {
-            var nodes = parsoidDoc.getElementsByClassName(classname);
+            var nodes = dom.getElementsByClassName(classname);
             for (var i = 0; i < nodes.length; i++) {
                 nodes[i].style.removeProperty('display');
             }
         });
 
         /* Remove link tags */
-        var links = parsoidDoc.getElementsByTagName('link');
+        var links = dom.getElementsByTagName('link');
         for (var i = 0; i < links.length; i++) {
             deleteNode(links[i]);
         }
-        ;
 
         /* Remove useless DOM nodes without children */
         var tagNames = ['li', 'span'];
         tagNames.map(function (tagName) {
-            var nodes = parsoidDoc.getElementsByTagName(tagName);
+            var nodes = dom.getElementsByTagName(tagName);
             for (var i = 0; i < nodes.length; i++) {
                 if (!nodes[i].innerHTML) {
                     deleteNode(nodes[i]);
                 }
             }
-            ;
         });
 
         /* Remove useless input nodes */
-        var inputNodes = parsoidDoc.getElementsByTagName('input');
+        var inputNodes = dom.getElementsByTagName('input');
         for (var i = 0; i < inputNodes.length; i++) {
             deleteNode(inputNodes[i]);
         }
-        ;
 
         /* Remove empty paragraphs */
         if (!keepEmptyParagraphs) {
             for (var level = 5; level > 0; level--) {
-                var paragraphNodes = parsoidDoc.getElementsByTagName('h' + level);
+                var paragraphNodes = dom.getElementsByTagName('h' + level);
                 for (var i = 0; i < paragraphNodes.length; i++) {
                     var paragraphNode = paragraphNodes[i];
                     var nextElementNode = getNextSiblingElement(paragraphNode);
@@ -1386,7 +1375,7 @@ function saveArticles( finished ) {
         }
 
         /* Clean the DOM of all uncessary code */
-        var allNodes = parsoidDoc.getElementsByTagName('*');
+        var allNodes = dom.getElementsByTagName('*');
         for (var i = 0; i < allNodes.length; i++) {
             var node = allNodes[i];
             node.removeAttribute('data-parsoid');
@@ -1405,158 +1394,84 @@ function saveArticles( finished ) {
                 }
             });
         }
-
-        finished(null, parsoidDoc, articleId);
     }
 
-    function setFooter(parsoidDoc, articleId, finished) {
-        var htmlTemplateDoc = domino.createDocument(htmlTemplateCode);
-
-        /* Create final document by merging template and parsoid documents */
-        htmlTemplateDoc.getElementById('mw-content-text').innerHTML = parsoidDoc.getElementsByTagName('body')[0].innerHTML;
-        htmlTemplateDoc.getElementsByTagName('title')[0].innerHTML =
-            parsoidDoc.getElementsByTagName('title') ? parsoidDoc.getElementsByTagName('title')[0].innerHTML.replace(/_/g, ' ') : articleId.replace(/_/g, ' ');
-        if (mainPageId != articleId) {
-            htmlTemplateDoc.getElementById('titleHeading').innerHTML = htmlTemplateDoc.getElementsByTagName('title')[0].innerHTML;
-        } else {
-            deleteNode(htmlTemplateDoc.getElementById('titleHeading'));
-        }
-
-        /* Subpage */
-        if (isSubpage(articleId) && mainPageId != articleId) {
-            var contentNode = htmlTemplateDoc.getElementById('content');
-            var headingNode = htmlTemplateDoc.getElementById('mw-content-text');
-            var subpagesNode = htmlTemplateDoc.createElement('span');
-            var parents = articleId.split('/');
-            parents.pop();
-            var subpages = '';
-            var parentPath = '';
-            parents.map(function (parent) {
-                var label = parent.replace(/_/g, ' ');
-                var isParentMirrored = isMirrored(parentPath + parent);
-                subpages += '&lt; ' + ( isParentMirrored ? '<a href="' + getArticleUrl(parentPath + parent) + '" title="' + label + '">' : '' )
-                    + label + ( isParentMirrored ? '</a> ' : ' ' );
-                parentPath += parent + '/';
-            });
-            subpagesNode.innerHTML = subpages;
-            subpagesNode.setAttribute('class', 'subpages');
-            contentNode.insertBefore(subpagesNode, headingNode);
-        }
-
-        /* Set footer */
-        var div = htmlTemplateDoc.createElement('div');
-        var oldId = articleIds[articleId];
-        redisClient.hget(redisArticleDetailsDatabase, articleId, function (error, detailsJson) {
-            if (error) {
-                finished('Unable to get the details from redis for article ' + articleId + ': ' + error);
-            } else {
-
-                /* Is seems that sporadically this goes wrong */
-                var details = JSON.parse(detailsJson);
-
-                /* Revision date */
-                var timestamp = details['t'];
-                var date = new Date(timestamp * 1000);
-                div.innerHTML = footerTemplate({
-                    articleId: encodeURIComponent(articleId),
-                    webUrl: webUrl,
-                    creator: creator,
-                    oldId: oldId,
-                    date: date.toLocaleDateString("en-US")
-                });
-                htmlTemplateDoc.getElementById('mw-content-text').appendChild(div);
-                addNoIndexCommentToElement(div);
-
-                /* Geo-coordinates */
-                var geoCoordinates = details['g'];
-                if (geoCoordinates) {
-                    var metaNode = htmlTemplateDoc.createElement('meta');
-                    metaNode.name = 'geo.position';
-                    metaNode.content = geoCoordinates // latitude + ';' + longitude;
-                    htmlTemplateDoc.getElementsByTagName('head')[0].appendChild(metaNode);
-                }
-
-                finished(null, htmlTemplateDoc, articleId);
-            }
-        });
-    }
-
-    function writeArticle(doc, articleId, finished) {
+    function writeArticle(json, articleId, finished) {
         printLog('Saving article ' + articleId + '...');
-        var html = doc.documentElement.outerHTML;
-
-        if (minifyHtml) {
-            html = htmlMinifier.minify(html, {
-                removeComments: true,
-                conservativeCollapse: true,
-                collapseBooleanAttributes: true,
-                removeRedundantAttributes: true,
-                removeEmptyAttributes: true,
-                minifyCSS: true
-            });
-        }
 
         if (deflateTmpHtml) {
-            zlib.deflate(html, function (error, deflatedHtml) {
-                fs.writeFile(getArticlePath(articleId), deflatedHtml, finished);
+            zlib.deflate(json.stringify(), function (error, deflatedContent) {
+                fs.writeFile(getArticlePath(articleId), deflatedContent, finished);
             });
         } else {
-            fs.writeFile(getArticlePath(articleId), html, finished);
+            fs.writeFile(getArticlePath(articleId), JSON.stringify(json), finished);
         }
     }
 
     function saveArticle(articleId, finished) {
-        var articleUrl = parsoidUrl + encodeURIComponent(articleId) + ( parsoidUrl.indexOf('/rest') < 0 ? (parsoidUrl.indexOf('?') < 0 ? '?' : '&' ) + 'oldid=' : '/' ) + articleIds[articleId];
+
+
+        //var articleUrl = parsoidUrl + encodeURIComponent(articleId) + ( parsoidUrl.indexOf('/rest') < 0 ? (parsoidUrl.indexOf('?') < 0 ? '?' : '&' ) + 'oldid=' : '/' ) + articleIds[articleId];
+
+        var articleUrl = "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/" + encodeURIComponent(articleId);
+
+
+        console.log(">>>>>>> " + articleUrl);
+
+
         printLog('Getting article from ' + articleUrl);
-        setTimeout(skipHtmlCache || articleId == mainPageId ? downloadContent : downloadContentAndCache, downloadFileQueue.length() + optimizationQueue.length(), articleUrl, function (content, responseHeaders, articleId) {
-            var html = '';
-            if (parsoidContentType == 'json') {
+        setTimeout(skipHtmlCache || articleId == mainPageId ? downloadContent : downloadContentAndCache,
+            downloadFileQueue.length() + optimizationQueue.length(),
+            articleUrl,
+            function (content, responseHeaders, articleId) {
+
                 var json = JSON.parse(content.toString());
-                if (json['visualeditor']) {
-                    html = json['visualeditor']['content'];
-                } else {
-                    console.error('Error by retrieving article: ' + json['error']['info']);
+
+                if (!json['lead']) {
+                    console.error('Error retrieving article: ' + articleId);
                 }
-            } else {
-                html = content.toString();
-            }
 
-            if (html) {
-                var articlePath = getArticlePath(articleId);
-                var prepareAndSaveArticle = async.compose(writeArticle, setFooter, applyOtherTreatments, rewriteUrls, treatMedias, parseHtml);
+                if (json) {
+                    var articlePath = getArticlePath(articleId);
 
-                printLog('Treating and saving article ' + articleId + ' at ' + articlePath + '...');
-                prepareAndSaveArticle(html, articleId, function (error, result) {
-                    if (error) {
-                        console.error('Error by preparing and saving file ' + error);
-                        process.exit(1);
-                    } else {
-                        printLog('Dumped successfully article ' + articleId);
-                        finished();
-                    }
-                });
-            } else {
-                delete articleIds[articleId];
-                finished();
-            }
-        }, articleId);
+                    printLog('Treating and saving article ' + articleId + ' at ' + articlePath + '...');
+
+                    console.log(">>>>>>> about to transform sections...");
+
+                    transformSections(json);
+
+                    writeArticle(json, articleId, function (error, result) {
+                        if (error) {
+                            console.error('Error by preparing and saving file ' + error);
+                            process.exit(1);
+                        } else {
+                            printLog('Dumped successfully article ' + articleId);
+                            finished();
+                        }
+                    });
+
+                } else {
+                    console.error('Error retrieving article: ' + articleId);
+
+                    delete articleIds[articleId];
+                    finished();
+                }
+            }, articleId);
     }
 
     printLog('Saving articles...');
-    async.eachLimit(Object.keys(articleIds), speed, saveArticle, function (error) {
-        if (error) {
-            console.error('Unable to retrieve an article correctly: ' + error);
-            process.exit(1);
-        } else {
-            printLog('All articles were retrieved and saved.');
-            finished();
-        }
-    });
-}
-
-function addNoIndexCommentToElement( element ) {
-    var slices = element.parentElement.innerHTML.split(element.outerHTML);
-    element.parentElement.innerHTML = slices[0] + "<!--htdig_noindex-->" + element.outerHTML + "<!--/htdig_noindex-->" + slices[1];
+    async.eachLimit(Object.keys(articleIds),
+        speed,
+        saveArticle,
+        function (error) {
+            if (error) {
+                console.error('Unable to retrieve an article correctly: ' + error);
+                process.exit(1);
+            } else {
+                printLog('All articles were retrieved and saved.');
+                finished();
+            }
+        });
 }
 
 function isMirrored( id ) {
@@ -1578,204 +1493,6 @@ function isSubpage( id ) {
         }
     }
     return false;
-}
-
-/* Grab and concatenate javascript files */
-function saveJavascript( finished ) {
-    printLog('Creating javascript...');
-
-    jsdom.defaultDocumentFeatures = {
-        FetchExternalResources: ['script'],
-        ProcessExternalResources: ['script'],
-        MutationEvents: '2.0'
-    };
-
-    printLog('Get the javascript from ' + webUrl);
-    downloadContent(webUrl, function (content, responseHeaders) {
-        var html = content.toString().replace('<head>', '<head><base href="' + mwUrl + '" />');
-
-        // Create a dummy JS file to be executed asynchronously in place of loader.php
-        var dummyPath = htmlRootPath + javascriptDirectory + '/local.js';
-        printLog('Writting dummy js at' + dummyPath);
-        fs.writeFileSync(dummyPath, 'console.log( "mw.loader not supported" );');
-
-        /* Backward compatibility for old version of jsdom */
-        var window;
-        try {
-            window = jsdom.jsdom(html).parentView || jsdom.jsdom(html).defaultView;
-        } catch (error) {
-            printLog('Unable to call jsdom.jsdom( html ).parentWindow without crashing, try an other way.');
-            window = jsdom.jsdom(html).createWindow();
-        }
-
-        /* Try to detect all javascript code included */
-        printLog('Adding load listener on window');
-        window.addEventListener('load', function () {
-            printLog('Going through scripts in head and body to dump javascript...');
-            var nodeNames = ['head', 'body'];
-            async.map(nodeNames,
-                function (nodeName, finished) {
-                    var node = window.document.getElementsByTagName(nodeName)[0];
-                    var scripts = node.getElementsByTagName('script');
-                    var javascriptPath = htmlRootPath + javascriptDirectory + '/' + nodeName + '.js';
-
-                    fs.unlink(javascriptPath, function () {
-                        var scriptIncrementor = 0;
-                        async.whilst(
-                            function () {
-                                return scriptIncrementor < scripts.length;
-                            },
-                            function (finished) {
-                                var script = scripts[scriptIncrementor++];
-                                var url = script.getAttribute('src');
-                                var munge_js = function (txt) {
-                                    txt = txt.replace(RegExp('//bits.wikimedia.org/.*.wikipedia.org/load.php', 'g'), javascriptDirectory + '/local.js');
-                                    return txt;
-                                }
-
-                                if (url) {
-                                    url = getFullUrl(url).replace('debug=false', 'debug=true');
-                                    printLog('Downloading javascript from ' + url);
-                                    downloadContent(url, function (content, responseHeaders) {
-                                        fs.appendFile(javascriptPath, '\n' + munge_js(content.toString()) + '\n', function (error) {
-                                            finished();
-                                        });
-                                    });
-                                } else {
-                                    fs.appendFile(javascriptPath, '\n' + munge_js(script.innerHTML) + '\n', function (error) {
-                                        finished();
-                                    });
-                                }
-                            },
-                            function (error) {
-                                if (error) {
-                                    console.error('Error by downloading CSS/JS dependencies: ' + error);
-                                } else {
-                                    printLog('All CSS/JS dependencies downloaded successfuly.');
-                                }
-                                finished();
-                            });
-                    });
-                },
-                function (error, result) {
-                    finished();
-                });
-        });
-        printLog('Listener (to load javascript added to window)...');
-    });
-}
-
-/* Grab and concatenate stylesheet files */
-function saveStylesheet( finished ) {
-    printLog('Dumping stylesheets...');
-    var urlCache = new Object();
-    var stylePath = htmlRootPath + styleDirectory + '/style.css';
-
-    /* Remove if exists */
-    fs.unlink(stylePath, function () {
-    });
-
-    /* Take care to download medias */
-    var downloadCSSFileQueue = async.queue(function (data, finished) {
-        if (data.url && data.path) {
-            downloadFile(data.url, data.path, true, finished);
-        } else {
-            finished();
-        }
-    }, speed);
-
-    /* Take care to download CSS files */
-    var downloadCSSQueue = async.queue(function (link, finished) {
-
-        /* link might be a 'link' DOM node or an URL */
-        var cssUrl = typeof link == 'object' ? getFullUrl(link.getAttribute('href')) : link;
-        var linkMedia = typeof link == 'object' ? link.getAttribute('media') : null;
-
-        if (cssUrl) {
-            var cssUrlRegexp = new RegExp('url\\([\'"]{0,1}(.+?)[\'"]{0,1}\\)', 'gi');
-            var cssDataUrlRegex = new RegExp('^data');
-
-            printLog('Downloading CSS from ' + decodeURI(cssUrl));
-            downloadContent(cssUrl, function (content, responseHeaders) {
-                var body = content.toString();
-
-                var rewrittenCss = '\n/* start ' + cssUrl + ' */\n\n';
-                rewrittenCss += linkMedia ? '@media ' + linkMedia + '  {\n' : '\n';
-                rewrittenCss += body + '\n';
-                rewrittenCss += linkMedia ? '} /* @media ' + linkMedia + ' */\n' : '\n';
-                rewrittenCss += '\n/* end   ' + cssUrl + ' */\n';
-
-                /* Downloading CSS dependencies */
-                var match;
-                while (match = cssUrlRegexp.exec(body)) {
-                    var url = match[1];
-
-                    /* Avoid 'data', so no url dependency */
-                    if (!url.match('^data')) {
-                        var filename = pathParser.basename(urlParser.parse(url, false, true).pathname);
-
-                        /* Rewrite the CSS */
-                        rewrittenCss = rewrittenCss.replace(url, filename);
-
-                        /* Need a rewrite if url doesn't include protocol */
-                        url = getFullUrl(url, cssUrl);
-                        url = url.indexOf('%') < 0 ? encodeURI(url) : url;
-
-                        /* Download CSS dependency, but avoid duplicate calls */
-                        if (!urlCache.hasOwnProperty(url)) {
-                            urlCache[url] = true;
-                            downloadCSSFileQueue.push({url: url, path: htmlRootPath + styleDirectory + '/' + filename});
-                        }
-                    }
-                }
-
-                fs.appendFileSync(stylePath, rewrittenCss);
-                finished();
-            });
-        } else {
-            finished();
-        }
-
-    }, speed);
-
-    /* Load main page to see which CSS files are needed */
-    downloadContentAndCache(webUrl, function (content, responseHeaders) {
-        var html = content.toString();
-        var doc = domino.createDocument(html);
-        var links = doc.getElementsByTagName('link');
-
-        /* Go through all CSS links */
-        for (var i = 0; i < links.length; i++) {
-            var link = links[i];
-            if (link.getAttribute('rel') === 'stylesheet') {
-                downloadCSSQueue.push(link);
-            }
-        }
-
-        /* Push Mediawiki:Offline.css ( at the end) */
-        downloadCSSQueue.push(webUrl + 'Mediawiki:offline.css?action=raw');
-
-        /* Set the drain method to be called one time everything is done */
-        downloadCSSQueue.drain = function (error) {
-            if (error) {
-                console.error('Error by CSS dependencies: ' + error);
-                process.exit(1);
-            } else {
-                var drainBackup = downloadCSSQueue.drain;
-                downloadCSSFileQueue.drain = function (error) {
-                    if (error) {
-                        console.error('Error by CSS medias: ' + error);
-                        process.exit(1);
-                    } else {
-                        downloadCSSQueue.drain = drainBackup;
-                        finished();
-                    }
-                };
-                downloadCSSFileQueue.push('');
-            }
-        };
-        downloadCSSQueue.push('');
-    });
 }
 
 /* Get ids */
