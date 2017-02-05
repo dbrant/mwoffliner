@@ -121,7 +121,7 @@ let outputDirectory = argv.outputDirectory ? homeDirExpander( argv.outputDirecto
 
 /* Directory where temporary data are saved */
 let tmpDirectory = argv.tmpDirectory ? homeDirExpander( argv.tmpDirectory ) + '/' : 'tmp/';
-let deflateTmpHtml = false; //argv.deflateTmpHtml;
+let deflateTmpHtml = argv.deflateTmpHtml;
 
 /* Parsoid URL */
 let parsoidUrl = argv.parsoidUrl;
@@ -1141,6 +1141,7 @@ function saveArticles( finished ) {
 
                             let deg = function (hemiHash) {
                                 let out = 0;
+                                let hemiSign = 1;
                                 for (let i = 0; i < 4 && (i + offs) < pieces.length; i++) {
                                     let v = pieces[i + offs];
                                     let hemiSign = hemiHash[v];
@@ -1395,7 +1396,7 @@ function saveArticles( finished ) {
         printLog('Saving article ' + articleId + '...');
 
         if (deflateTmpHtml) {
-            zlib.deflate(json.stringify(), function (error, deflatedContent) {
+            zlib.deflate(JSON.stringify(json), function (error, deflatedContent) {
                 fs.writeFile(getArticlePath(articleId), deflatedContent, finished);
             });
         } else {
