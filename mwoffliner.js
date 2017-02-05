@@ -417,7 +417,7 @@ async.series(
                 }
             ],
             function (error, result) {
-                printLog('All dumping(s) finished with success.');
+                printLog('All dump(s) finished with success.');
 
                 /* Time to time the script hungs here. Forcing the exit */
                 process.exit(0);
@@ -446,7 +446,7 @@ const optimizationQueue = async.queue( function ( file, finished ) {
         tmpPath = tmpPath.replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`');
 
         if (type === 'jpg' || type === 'jpeg' || type === 'JPG' || type === 'JPEG') {
-            return 'jpegoptim --strip-all --force --all-normal -m60 "' + path + '"';
+            return 'jpegoptim -s -f --all-normal -m40 "' + path + '"';
         } else if (type === 'png' || type === 'PNG') {
             return 'pngquant --verbose --nofs --force --ext="' + tmpExt + '" "' + path +
                 '" && advdef -q -z -4 -i 5 "' + tmpPath +
@@ -471,7 +471,7 @@ const optimizationQueue = async.queue( function ( file, finished ) {
                                         if (!error && stats.size > file.size) {
                                             finished(null, true);
                                         } else if (!error && stats.size < file.size) {
-                                            finished('File to optim is smaller (before optim) than it should.');
+                                            finished('File to optimize is smaller (before optimization) than it should be.');
                                         } else {
                                             exec('file -b --mime-type "' + path + '"', function (error, stdout, stderr) {
                                                 let type = stdout.replace(/image\//, '').replace(/[\n\r]/g, '');
@@ -493,7 +493,7 @@ const optimizationQueue = async.queue( function ( file, finished ) {
                         function (error, skip) {
                             if (error) {
                                 printErr('Executing command : ' + cmd);
-                                printErr('Failed to optim ' + path + ', with size=' + file.size + ' (' + error + ')');
+                                printErr('Failed to optimize ' + path + ', with size=' + file.size + ' (' + error + ')');
                             } else if (skip) {
                                 printLog('Optimization skipped for ' + path + ', with size=' + file.size + ', a better version was downloaded meanwhile.');
                             } else {
@@ -506,8 +506,9 @@ const optimizationQueue = async.queue( function ( file, finished ) {
                     finished();
                 }
             } else {
-                printErr('Failed to start to optim ' + path + '. Size should be ' + file.size +
-                    ' (' + ( error ? 'file was probably deleted, here the error: ' + error : ( stats ? stats.size : 'No stats information' ) ) + ')');
+                printErr('Failed to start to optimize ' + path + '. Size should be ' + file.size +
+                    ' (' + ( error ? 'file was probably deleted; error: ' +
+                        error : ( stats ? stats.size : 'No stats information' ) ) + ')');
                 finished();
             }
         });
@@ -725,6 +726,7 @@ function buildZIM( finished ) {
                     withZimFullTextIndex ? '--withFullTextIndex' : '',
                     nopic ? '--tags=nopic' : '',
                     mainPageId ? '--welcome=' + getArticleBase(mainPageId) : '--welcome=index.htm',
+                    '--minChunkSize=512',
                     '--favicon=favicon.png',
                     '--language=' + langIso3,
                     '--title=' + name,
@@ -758,7 +760,7 @@ function buildZIM( finished ) {
 }
 
 function endProcess( finished ) {
-    printLog('Dumping finished with success.');
+    printLog('Dump finished with success.');
     redisClient.del(redisMediaIdsDatabase, finished);
 }
 
@@ -855,7 +857,7 @@ function cacheRedirects( finished ) {
                     printErr('Unable to cache a redirect: ' + error);
                     process.exit(1);
                 } else {
-                    printLog('All redirects were cached successfully.');
+                    printLog('All redirects cached successfully.');
                     finished();
                 }
             });
@@ -906,10 +908,6 @@ function saveHtmlRedirects( finished ) {
         }
     });
 }
-
-
-
-
 
 function saveArticles( finished ) {
 
@@ -1026,224 +1024,94 @@ function saveArticles( finished ) {
                 util.deleteNode(img);
             }
         }
-
-        /* Improve image frames */
-        let figures = dom.getElementsByTagName('figure');
-        let spans = dom.querySelectorAll("span[typeof=mw:Image/Frameless]");
-        let imageNodes = Array.prototype.slice.call(figures).concat(Array.prototype.slice.call(spans));
-        for (let i = 0; i < imageNodes.length; i++) {
-            let imageNode = imageNodes[i];
-            let images = imageNode.getElementsByTagName('img');
-            let image = images.length > 0 ? images[0] : undefined;
-            let isStillLinked = image && image.parentNode && image.parentNode.tagName === 'A';
-
-            if (!nopic && imageNode && image) {
-                let imageNodeClass = imageNode.getAttribute('class') || '';
-                let imageNodeTypeof = imageNode.getAttribute('typeof') || '';
-
-                if (imageNodeTypeof.indexOf('mw:Image/Thumb') >= 0) {
-                    let descriptions = imageNode.getElementsByTagName('figcaption');
-                    let description = descriptions.length > 0 ? descriptions[0] : undefined;
-                    let imageWidth = parseInt(image.getAttribute('width'));
-
-                    let thumbDiv = dom.createElement('div');
-                    thumbDiv.setAttribute('class', 'thumb');
-                    if (imageNodeClass.search('mw-halign-right') >= 0) {
-                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tright'));
-                    } else if (imageNodeClass.search('mw-halign-left') >= 0) {
-                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tleft'));
-                    } else if (imageNodeClass.search('mw-halign-center') >= 0) {
-                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 'tnone'));
-                        let centerDiv = dom.createElement('center');
-                        centerDiv.appendChild(thumbDiv);
-                        thumbDiv = centerDiv;
-                    } else {
-                        thumbDiv.setAttribute('class', util.concatenateToAttribute(thumbDiv.getAttribute('class'), 't' + revAutoAlign));
-                    }
-
-                    let thumbinnerDiv = dom.createElement('div');
-                    thumbinnerDiv.setAttribute('class', 'thumbinner');
-                    thumbinnerDiv.setAttribute('style', 'width:' + ( imageWidth + 2) + 'px');
-
-                    let thumbcaptionDiv = dom.createElement('div');
-                    thumbcaptionDiv.setAttribute('class', 'thumbcaption');
-                    thumbcaptionDiv.setAttribute('style', 'text-align: ' + autoAlign);
-                    if (description) {
-                        thumbcaptionDiv.innerHTML = description.innerHTML
-                    }
-
-                    thumbinnerDiv.appendChild(isStillLinked ? image.parentNode : image);
-                    thumbinnerDiv.appendChild(thumbcaptionDiv);
-                    thumbDiv.appendChild(thumbinnerDiv);
-
-                    imageNode.parentNode.replaceChild(thumbDiv, imageNode);
-                } else if (imageNodeTypeof.indexOf('mw:Image') >= 0) {
-                    let div = dom.createElement('div');
-                    if (imageNodeClass.search('mw-halign-right') >= 0) {
-                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'floatright'));
-                    } else if (imageNodeClass.search('mw-halign-left') >= 0) {
-                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'floatleft'));
-                    } else if (imageNodeClass.search('mw-halign-center') >= 0) {
-                        div.setAttribute('class', util.concatenateToAttribute(div.getAttribute('class'), 'center'));
-                    }
-                    div.appendChild(isStillLinked ? image.parentNode : image);
-                    imageNode.parentNode.replaceChild(div, imageNode);
-                }
-            } else {
-                util.deleteNode(imageNode);
-            }
-        }
     }
 
     function rewriteUrls(dom) {
 
         function rewriteUrl(linkNode) {
-            let rel = linkNode.getAttribute('rel');
-            let href = linkNode.getAttribute('href') || '';
-
+            let href = linkNode.getAttribute('href');
             if (!href) {
-                util.deleteNode(linkNode);
                 return;
             }
 
-            /* Deal with custom geo. URL replacement, for example:
-             * http://maps.wikivoyage-ev.org/w/poimap2.php?lat=44.5044943&lon=34.1969633&zoom=15&layer=M&lang=ru&name=%D0%9C%D0%B0%D1%81%D1%81%D0%B0%D0%BD%D0%B4%D1%80%D0%B0
-             * http://tools.wmflabs.org/geohack/geohack.php?language=fr&pagename=Tour_Eiffel&params=48.85825_N_2.2945_E_type:landmark_region:fr
-             */
-            if (rel != 'mw:WikiLink') {
-                let lat, lon;
-                if (/poimap2\.php/i.test(href)) {
-                    let hrefQuery = urlParser.parse(href, true).query;
-                    lat = parseFloat(hrefQuery.lat);
-                    lon = parseFloat(hrefQuery.lon);
-                } else if (/geohack\.php/i.test(href)) {
-                    let params = urlParser.parse(href, true).query.params;
+            // Deal with custom geo. URL replacement, for example:
+            // http://maps.wikivoyage-ev.org/w/poimap2.php?lat=44.5044943&lon=34.1969633&zoom=15&layer=M&lang=ru&name=%D0%9C%D0%B0%D1%81%D1%81%D0%B0%D0%BD%D0%B4%D1%80%D0%B0
+            // http://tools.wmflabs.org/geohack/geohack.php?language=fr&pagename=Tour_Eiffel&params=48.85825_N_2.2945_E_type:landmark_region:fr
+            let lat, lon;
+            if (/poimap2\.php/i.test(href)) {
+                let hrefQuery = urlParser.parse(href, true).query;
+                lat = parseFloat(hrefQuery.lat);
+                lon = parseFloat(hrefQuery.lon);
+            } else if (/geohack\.php/i.test(href)) {
+                let params = urlParser.parse(href, true).query.params;
 
-                    /* "params" might be an array, try to detect the geo localization one */
-                    if (params instanceof Array) {
-                        let i = 0;
-                        while (params[i] && isNaN(params[i][0])) {
-                            i++
-                        }
-                        params = params[i];
+                // "params" might be an array, try to detect the geo localization one
+                if (params instanceof Array) {
+                    let i = 0;
+                    while (params[i] && isNaN(params[i][0])) {
+                        i++
                     }
-
-                    if (params) {
-                        // see https://bitbucket.org/magnusmanske/geohack/src public_html geo_param.php
-                        let pieces = params.toUpperCase().split('_');
-                        let semiPieces = pieces.length > 0 ? pieces[0].split(';') : undefined;
-                        if (semiPieces && semiPieces.length == 2) {
-                            lat = semiPieces[0];
-                            lon = semiPieces[1];
-                        } else {
-                            let factors = [1, 60, 3600];
-                            let offs = 0;
-
-                            let deg = function (hemiHash) {
-                                let out = 0;
-                                let hemiSign = 1;
-                                for (let i = 0; i < 4 && (i + offs) < pieces.length; i++) {
-                                    let v = pieces[i + offs];
-                                    let hemiSign = hemiHash[v];
-                                    if (hemiSign) {
-                                        offs = i + 1;
-                                        break;
-                                    }
-                                    out += v / factors[i];
-                                }
-                                return out * hemiSign;
-                            };
-
-                            lat = deg({N: 1, S: -1});
-                            lon = deg({E: 1, W: -1, O: 1});
-                        }
-                    }
+                    params = params[i];
                 }
 
-                if (!isNaN(lat) && !isNaN(lon)) {
-                    href = 'geo:' + lat + ',' + lon;
-                    linkNode.setAttribute('href', href);
-                }
-            }
-
-            if (rel) {
-                /* Add 'external' class to external links */
-                if (rel.substring(0, 10) === 'mw:ExtLink' ||
-                    rel === 'mw:WikiLink/Interwiki') {
-                    linkNode.setAttribute('class', util.concatenateToAttribute(linkNode.getAttribute('class'), 'external'));
-                }
-
-                /* Rewrite external links starting with // */
-                if (rel.substring(0, 10) === 'mw:ExtLink' || rel == 'nofollow') {
-                    if (href.substring(0, 1) === '/') {
-                        linkNode.setAttribute('href', getFullUrl(href));
-                    } else if (href.substring(0, 2) === './') {
-                        while (linkNode.firstChild) {
-                            linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
-                        }
-                        linkNode.parentNode.removeChild(linkNode);
-                    }
-                }
-                /* Remove internal links pointing to no mirrored articles */
-                else if (rel == 'mw:WikiLink') {
-                    let targetId = extractTargetIdFromHref(href);
-
-                    /* Deal with local anchor */
-                    let localAnchor = '';
-                    if (targetId.lastIndexOf("#") != -1) {
-                        localAnchor = targetId.substr(targetId.lastIndexOf('#'));
-                        targetId = targetId.substr(0, targetId.lastIndexOf('#'));
-                    }
-
-                    if (isMirrored(targetId)) {
-                        linkNode.setAttribute('href', getArticleUrl(targetId) + localAnchor);
+                if (params) {
+                    // see https://bitbucket.org/magnusmanske/geohack/src public_html geo_param.php
+                    let pieces = params.toUpperCase().split('_');
+                    let semiPieces = pieces.length > 0 ? pieces[0].split(';') : undefined;
+                    if (semiPieces && semiPieces.length == 2) {
+                        lat = semiPieces[0];
+                        lon = semiPieces[1];
                     } else {
-                        try {
-                            redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
-                                if (error) {
-                                    printErr('Unable to check redirect existence with redis: ' + error);
-                                    process.exit(1);
-                                } else {
-                                    if (res) {
-                                        linkNode.setAttribute('href', getArticleUrl(targetId));
-                                    } else {
-                                        while (linkNode.firstChild) {
-                                            linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
-                                        }
-                                        linkNode.parentNode.removeChild(linkNode);
-                                    }
+                        let factors = [1, 60, 3600];
+                        let offs = 0;
+
+                        let deg = function (hemiHash) {
+                            let out = 0;
+                            let hemiSign = 1;
+                            for (let i = 0; i < 4 && (i + offs) < pieces.length; i++) {
+                                let v = pieces[i + offs];
+                                let hemiSign = hemiHash[v];
+                                if (hemiSign) {
+                                    offs = i + 1;
+                                    break;
                                 }
-                            });
-                        } catch (error) {
-                            printErr("Exception requesting redis " + error);
-                            process.exit(1);
-                        }
-                    }
-                }
-            } else {
-                let targetId = extractTargetIdFromHref(href);
-                if (targetId) {
-                    if (isMirrored(targetId)) {
-                        linkNode.setAttribute('href', getArticleUrl(targetId));
-                    } else {
-                        redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
-                            if (error) {
-                                printErr('Unable to check redirect existence with redis: ' + error);
-                                process.exit(1);
-                            } else {
-                                if (res) {
-                                    linkNode.setAttribute('href', getArticleUrl(targetId));
-                                } else {
-                                    while (linkNode.firstChild) {
-                                        linkNode.parentNode.insertBefore(linkNode.firstChild, linkNode);
-                                    }
-                                    linkNode.parentNode.removeChild(linkNode);
-                                }
+                                out += v / factors[i];
                             }
-                        });
+                            return out * hemiSign;
+                        };
+
+                        lat = deg({N: 1, S: -1});
+                        lon = deg({E: 1, W: -1, O: 1});
                     }
                 }
             }
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                href = 'geo:' + lat + ',' + lon;
+                linkNode.setAttribute('href', href);
+            }
+
+            /*
+            let targetId = extractTargetIdFromHref(href);
+            if (targetId) {
+                if (isMirrored(targetId)) {
+                    //linkNode.setAttribute('href', getArticleUrl(targetId));
+                } else {
+                    redisClient.hexists(redisRedirectsDatabase, targetId, function (error, res) {
+                        if (error) {
+                            printErr('Unable to check redirect existence with redis: ' + error);
+                            process.exit(1);
+                        } else {
+                            if (res) {
+                                //linkNode.setAttribute('href', getArticleUrl(targetId));
+                            } else {
+                                linkNode.setAttribute('href', 'foo');
+                            }
+                        }
+                    });
+                }
+            }
+            */
         }
 
         /* Go through all links */
@@ -1257,15 +1125,7 @@ function saveArticles( finished ) {
     }
 
     function applyOtherTreatments(dom) {
-        /* Go through gallerybox */
-        let galleryboxes = dom.getElementsByClassName('gallerybox');
-        for (let i = 0; i < galleryboxes.length; i++) {
-            if (( !galleryboxes[i].getElementsByClassName('thumb').length ) || ( nopic )) {
-                util.deleteNode(galleryboxes[i]);
-            }
-        }
-
-        /* Remove "map" tags if necessary */
+        // Remove "map" tags if necessary
         if (nopic) {
             let maps = dom.getElementsByTagName('map');
             for (let i = 0; i < maps.length; i++) {
@@ -1273,24 +1133,7 @@ function saveArticles( finished ) {
             }
         }
 
-        /* Go through all reference calls */
-        let spans = dom.getElementsByTagName('span');
-        for (let i = 0; i < spans.length; i++) {
-            let span = spans[i];
-            let rel = span.getAttribute('rel');
-            if (rel === 'dc:references') {
-                let sup = dom.createElement('sup');
-                if (span.innerHTML) {
-                    sup.id = span.id;
-                    sup.innerHTML = span.innerHTML;
-                    span.parentNode.replaceChild(sup, span);
-                } else {
-                    util.deleteNode(span);
-                }
-            }
-        }
-
-        /* Remove element with id in the blacklist */
+        // Remove elements with id in the blacklist
         idBlackList.map(function (id) {
             let node = dom.getElementById(id);
             if (node) {
@@ -1298,7 +1141,7 @@ function saveArticles( finished ) {
             }
         });
 
-        /* Remove element with black listed CSS classes */
+        // Remove elements with blacklisted CSS classes
         cssClassBlackList.map(function (classname) {
             let nodes = dom.getElementsByClassName(classname);
             for (let i = 0; i < nodes.length; i++) {
@@ -1306,7 +1149,7 @@ function saveArticles( finished ) {
             }
         });
 
-        /* Remove element with black listed CSS classes and no link */
+        // Remove elements with blacklisted CSS classes and no link
         cssClassBlackListIfNoLink.map(function (classname) {
             let nodes = dom.getElementsByClassName(classname);
             for (let i = 0; i < nodes.length; i++) {
@@ -1316,80 +1159,13 @@ function saveArticles( finished ) {
             }
         });
 
-        /* Force display of element with that CSS class */
+        // Force display of elements with certain CSS classes
         cssClassDisplayList.map(function (classname) {
             let nodes = dom.getElementsByClassName(classname);
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].style.removeProperty('display');
             }
         });
-
-        /* Remove link tags */
-        let links = dom.getElementsByTagName('link');
-        for (let i = 0; i < links.length; i++) {
-            util.deleteNode(links[i]);
-        }
-
-        /* Remove useless DOM nodes without children */
-        let tagNames = ['li', 'span'];
-        tagNames.map(function (tagName) {
-            let nodes = dom.getElementsByTagName(tagName);
-            for (let i = 0; i < nodes.length; i++) {
-                if (!nodes[i].innerHTML) {
-                    util.deleteNode(nodes[i]);
-                }
-            }
-        });
-
-        /* Remove useless input nodes */
-        let inputNodes = dom.getElementsByTagName('input');
-        for (let i = 0; i < inputNodes.length; i++) {
-            util.deleteNode(inputNodes[i]);
-        }
-
-        /* Remove empty paragraphs */
-        if (!keepEmptyParagraphs) {
-            for (let level = 5; level > 0; level--) {
-                let paragraphNodes = dom.getElementsByTagName('h' + level);
-                for (let i = 0; i < paragraphNodes.length; i++) {
-                    let paragraphNode = paragraphNodes[i];
-                    let nextElementNode = util.getNextSiblingElement(paragraphNode);
-
-                    /* No nodes */
-                    if (!nextElementNode) {
-                        util.deleteNode(paragraphNode);
-                    } else {
-
-                        /* Delete if nextElementNode is a paragraph with <= level */
-                        let nextElementNodeTag = nextElementNode.tagName.toLowerCase();
-                        if (nextElementNodeTag.length > 1 && nextElementNodeTag[0] == 'h' && !isNaN(nextElementNodeTag[1]) && nextElementNodeTag[1] <= level) {
-                            util.deleteNode(paragraphNode);
-                        }
-                    }
-                }
-            }
-        }
-
-        /* Clean the DOM of all uncessary code */
-        let allNodes = dom.getElementsByTagName('*');
-        for (let i = 0; i < allNodes.length; i++) {
-            let node = allNodes[i];
-            node.removeAttribute('data-parsoid');
-            node.removeAttribute('typeof');
-            node.removeAttribute('about');
-            node.removeAttribute('data-mw');
-
-            if (node.getAttribute('rel') && node.getAttribute('rel').substr(0, 3) === 'mw:') {
-                node.removeAttribute('rel');
-            }
-
-            /* Remove a few css calls */
-            cssClassCallsBlackList.map(function (classname) {
-                if (node.getAttribute('class')) {
-                    node.setAttribute('class', node.getAttribute('class').replace(classname, ''));
-                }
-            });
-        }
     }
 
     function writeArticle(json, articleId, finished) {
@@ -1412,7 +1188,7 @@ function saveArticles( finished ) {
         let articleUrl = "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/" + encodeURIComponent(articleId);
 
 
-        console.log(">>>>>>> " + articleUrl);
+        console.log(">>>>>>> Saving \"" + articleUrl + "\"");
 
 
         printLog('Getting article from ' + articleUrl);
@@ -1431,8 +1207,6 @@ function saveArticles( finished ) {
                     let articlePath = getArticlePath(articleId);
 
                     printLog('Treating and saving article ' + articleId + ' at ' + articlePath + '...');
-
-                    console.log(">>>>>>> about to transform sections...");
 
                     transformSections(json);
 
@@ -2065,8 +1839,9 @@ function downloadFileAndCache( url, callback ) {
             });
         }
 
-        /* We already have this image with a resolution equal or higher to what we need */
+
         else {
+            // We already have this image with a resolution equal or higher to what we need */
             callback();
         }
     });
