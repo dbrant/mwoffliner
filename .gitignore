@@ -1,0 +1,9 @@
+
+/node_modules
+
+*.iml
+.idea
+*.tmproj
+
+*~
+.DS_Store
